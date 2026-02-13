@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
+import '../services/tester_data_service.dart';
 import '../widget/app_bottom_nav_bar.dart';
 
 class AppColors {
@@ -229,22 +230,27 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
     }
 
     try {
-      final Response<dynamic> response = await _adminApi().get('/guards');
-      final Map<String, dynamic> body = _mapValue(response.data);
-
-      if (body['ok'] == true) {
-        final List<Map<String, dynamic>> items = _mapListValue(body['data']);
-        if (mounted) {
-          setState(() {
-            _guards = items;
-          });
-        }
+      final List<Map<String, dynamic>> items;
+      if (AuthStorage.isTester) {
+        items = await TesterDataService.getGuards();
       } else {
-        throw Exception(
-          _stringValue(body['error']).isNotEmpty
-              ? _stringValue(body['error'])
-              : 'Error fetching guards',
-        );
+        final Response<dynamic> response = await _adminApi().get('/guards');
+        final Map<String, dynamic> body = _mapValue(response.data);
+
+        if (body['ok'] != true) {
+          throw Exception(
+            _stringValue(body['error']).isNotEmpty
+                ? _stringValue(body['error'])
+                : 'Error fetching guards',
+          );
+        }
+        items = _mapListValue(body['data']);
+      }
+
+      if (mounted) {
+        setState(() {
+          _guards = items;
+        });
       }
     } catch (error) {
       _showSnack(_errorMessageFrom(error), isError: true);
@@ -300,6 +306,17 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
   }
 
   Future<Map<String, dynamic>?> _toggleGuardStatus(String guardId) {
+    if (AuthStorage.isTester) {
+      return () async {
+        final Map<String, dynamic>? updated =
+            await TesterDataService.toggleGuardBlock(guardId);
+        await _fetchGuards(showLoader: false);
+        if (updated != null) {
+          _showSnack('Guard status updated');
+        }
+        return updated;
+      }();
+    }
     return _runMutation(
       guardId: guardId,
       request: (dio) => dio.patch('/guards/$guardId/toggle-block'),
@@ -308,6 +325,17 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
   }
 
   Future<Map<String, dynamic>?> _toggleVerified(String guardId) {
+    if (AuthStorage.isTester) {
+      return () async {
+        final Map<String, dynamic>? updated =
+            await TesterDataService.toggleGuardVerified(guardId);
+        await _fetchGuards(showLoader: false);
+        if (updated != null) {
+          _showSnack('Verification status updated');
+        }
+        return updated;
+      }();
+    }
     return _runMutation(
       guardId: guardId,
       request: (dio) => dio.patch('/guards/$guardId/verify'),
@@ -319,6 +347,20 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
     String guardId,
     String field,
   ) {
+    if (AuthStorage.isTester) {
+      return () async {
+        final Map<String, dynamic>? updated =
+            await TesterDataService.toggleGuardDocumentVerification(
+              guardId,
+              field,
+            );
+        await _fetchGuards(showLoader: false);
+        if (updated != null) {
+          _showSnack('$field verification updated');
+        }
+        return updated;
+      }();
+    }
     return _runMutation(
       guardId: guardId,
       request: (dio) => dio.patch(
@@ -335,6 +377,24 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
     String severity,
     DateTime date,
   ) async {
+    if (AuthStorage.isTester) {
+      try {
+        final Map<String, dynamic>? updated =
+            await TesterDataService.addGuardComplaint(
+              guardId,
+              description: description,
+              severity: severity,
+              date: date,
+            );
+        await _fetchGuards(showLoader: false);
+        _showSnack('Complaint added');
+        return updated;
+      } catch (error) {
+        _showSnack(_errorMessageFrom(error), isError: true);
+        return null;
+      }
+    }
+
     try {
       final Response<dynamic> response = await _adminApi().post(
         '/guards/$guardId/complaints',
@@ -411,16 +471,20 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
     }
 
     try {
-      final Response<dynamic> response = await _adminApi().delete(
-        '/guards/$guardId',
-      );
-      final Map<String, dynamic> body = _mapValue(response.data);
-      if (body['ok'] != true) {
-        throw Exception(
-          _stringValue(body['error']).isNotEmpty
-              ? _stringValue(body['error'])
-              : 'Error deleting guard',
+      if (AuthStorage.isTester) {
+        await TesterDataService.deleteGuard(guardId);
+      } else {
+        final Response<dynamic> response = await _adminApi().delete(
+          '/guards/$guardId',
         );
+        final Map<String, dynamic> body = _mapValue(response.data);
+        if (body['ok'] != true) {
+          throw Exception(
+            _stringValue(body['error']).isNotEmpty
+                ? _stringValue(body['error'])
+                : 'Error deleting guard',
+          );
+        }
       }
 
       await _fetchGuards(showLoader: false);
@@ -473,7 +537,11 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
   Future<void> _saveGuard(GuardFormData formData, String? guardId) async {
     final GuardFormData payloadData = formData.copy();
 
-    if (payloadData.photoFile != null) {
+    if (AuthStorage.isTester && payloadData.photoFile != null) {
+      payloadData.photo =
+          'https://picsum.photos/seed/guard_${DateTime.now().millisecondsSinceEpoch}/200/200';
+      payloadData.photoFile = null;
+    } else if (payloadData.photoFile != null) {
       payloadData.photo = await _uploadToCloudinary(
         payloadData.photoFile!,
         uploadPreset: 'honorAttend',
@@ -485,7 +553,16 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
       payloadData.passport,
       payloadData.sira,
     ]) {
-      if (document.selectedFiles.isNotEmpty) {
+      if (AuthStorage.isTester && document.selectedFiles.isNotEmpty) {
+        final List<String> localDocs = document.selectedFiles
+            .map(
+              (file) =>
+                  'https://example.test/docs/${DateTime.now().millisecondsSinceEpoch}_${file.name}',
+            )
+            .toList();
+        document.imageUrls.addAll(localDocs);
+        document.selectedFiles = <XFile>[];
+      } else if (document.selectedFiles.isNotEmpty) {
         final List<String> uploaded = await _uploadMultipleToCloudinary(
           document.selectedFiles,
         );
@@ -495,22 +572,25 @@ class _GuardsPageState extends State<GuardsPage> with TickerProviderStateMixin {
     }
 
     final Map<String, dynamic> payload = payloadData.toPayload();
-    final Dio dio = _adminApi();
-
-    final Response<dynamic> response;
-    if (guardId != null && guardId.isNotEmpty) {
-      response = await dio.put('/guards/$guardId', data: payload);
+    if (AuthStorage.isTester) {
+      await TesterDataService.upsertGuard(payload: payload, guardId: guardId);
     } else {
-      response = await dio.post('/guards', data: payload);
-    }
+      final Dio dio = _adminApi();
+      final Response<dynamic> response;
+      if (guardId != null && guardId.isNotEmpty) {
+        response = await dio.put('/guards/$guardId', data: payload);
+      } else {
+        response = await dio.post('/guards', data: payload);
+      }
 
-    final Map<String, dynamic> body = _mapValue(response.data);
-    if (body['ok'] != true) {
-      throw Exception(
-        _stringValue(body['error']).isNotEmpty
-            ? _stringValue(body['error'])
-            : 'Error saving guard',
-      );
+      final Map<String, dynamic> body = _mapValue(response.data);
+      if (body['ok'] != true) {
+        throw Exception(
+          _stringValue(body['error']).isNotEmpty
+              ? _stringValue(body['error'])
+              : 'Error saving guard',
+        );
+      }
     }
 
     await _fetchGuards(showLoader: false);
@@ -1169,6 +1249,10 @@ class GuardFormDialog extends StatefulWidget {
 
 class _GuardFormDialogState extends State<GuardFormDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  static const List<String> _baseTypeOptions = <String>[
+    'full-time',
+    'part-time',
+  ];
 
   late GuardFormData _formData;
   bool _submitting = false;
@@ -1186,12 +1270,32 @@ class _GuardFormDialogState extends State<GuardFormDialog> {
     return _stringValue(guard['_id']);
   }
 
+  String _normalizeGenderValue(String raw) {
+    final String value = raw.trim();
+    if (value.isEmpty) {
+      return '';
+    }
+
+    final String lower = value.toLowerCase();
+    if (value == 'M' || lower == 'male') {
+      return 'M';
+    }
+    if (value == 'F' || lower == 'female') {
+      return 'F';
+    }
+    if (value == 'Other' || lower == 'other') {
+      return 'Other';
+    }
+    return '';
+  }
+
   @override
   void initState() {
     super.initState();
     _formData = widget.initialGuard == null
         ? GuardFormData.empty()
         : GuardFormData.fromGuard(widget.initialGuard!);
+    _formData.gender = _normalizeGenderValue(_formData.gender);
   }
 
   Future<void> _pickProfilePhoto() async {
@@ -1592,6 +1696,13 @@ class _GuardFormDialogState extends State<GuardFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final List<String> typeOptions = <String>[
+      ..._baseTypeOptions,
+      if (_formData.type.trim().isNotEmpty &&
+          !_baseTypeOptions.contains(_formData.type.trim()))
+        _formData.type.trim(),
+    ];
+
     final bool isEdit = _guardId != null;
 
     return Dialog(
@@ -1756,16 +1867,14 @@ class _GuardFormDialogState extends State<GuardFormDialog> {
                                         ? null
                                         : _formData.type,
                                     decoration: _inputDecoration('Type'),
-                                    items: const [
-                                      DropdownMenuItem(
-                                        value: 'full-time',
-                                        child: Text('full-time'),
-                                      ),
-                                      DropdownMenuItem(
-                                        value: 'part-time',
-                                        child: Text('part-time'),
-                                      ),
-                                    ],
+                                    items: typeOptions
+                                        .map(
+                                          (type) => DropdownMenuItem<String>(
+                                            value: type,
+                                            child: Text(type),
+                                          ),
+                                        )
+                                        .toList(),
                                     onChanged: (value) {
                                       _formData.type = _stringValue(value);
                                     },

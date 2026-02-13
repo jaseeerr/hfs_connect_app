@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
 import '../services/roster_pdf_service.dart';
+import '../services/tester_data_service.dart';
 import '../widget/app_bottom_nav_bar.dart';
 
 class AppColors {
@@ -449,11 +450,16 @@ class _NewRosterPageState extends State<NewRosterPage>
   }
 
   Future<_LoadedRosterData> _fetchRosterForEdit(String rosterId) async {
-    final Response<dynamic> rosterRes = await _api().get(
-      '/getRoster/$rosterId',
-    );
-    final Map<String, dynamic> body = _asMap(rosterRes.data);
-    final Map<String, dynamic> rosterMap = _asMap(body['roster']);
+    final Map<String, dynamic> rosterMap;
+    if (AuthStorage.isTester) {
+      rosterMap = _asMap(await TesterDataService.getRosterById(rosterId));
+    } else {
+      final Response<dynamic> rosterRes = await _api().get(
+        '/getRoster/$rosterId',
+      );
+      final Map<String, dynamic> body = _asMap(rosterRes.data);
+      rosterMap = _asMap(body['roster']);
+    }
 
     final DateTime? startDate = _asDate(rosterMap['startDate']);
     final DateTime? endDate = _asDate(rosterMap['endDate']);
@@ -524,8 +530,9 @@ class _NewRosterPageState extends State<NewRosterPage>
     }
 
     try {
-      final Response<dynamic> res = await _api().get('/getDateForRoster');
-      final Map<String, dynamic> body = _asMap(res.data);
+      final Map<String, dynamic> body = AuthStorage.isTester
+          ? await TesterDataService.getDateForRosterData()
+          : _asMap((await _api().get('/getDateForRoster')).data);
 
       final List<Map<String, dynamic>> clients = _asMapList(body['clients']);
       final List<Map<String, dynamic>> guards = _asMapList(body['guards']);
@@ -972,24 +979,35 @@ class _NewRosterPageState extends State<NewRosterPage>
       };
 
       if (_isEditMode) {
-        try {
-          await _api().patch('/updateRoster/$_editRosterId', data: payload);
-        } on DioException catch (err) {
-          if (!_isRouteNotFound(err)) {
-            rethrow;
+        if (AuthStorage.isTester) {
+          await TesterDataService.upsertRoster(
+            payload: payload,
+            rosterId: _editRosterId,
+          );
+        } else {
+          try {
+            await _api().patch('/updateRoster/$_editRosterId', data: payload);
+          } on DioException catch (err) {
+            if (!_isRouteNotFound(err)) {
+              rethrow;
+            }
+            await _api().put('/editRoster/$_editRosterId', data: payload);
           }
-          await _api().put('/editRoster/$_editRosterId', data: payload);
         }
         _showSnack('Roster updated successfully');
         _captureOriginalSnapshot();
       } else {
-        try {
-          await _api().post('/addRoster', data: payload);
-        } on DioException catch (err) {
-          if (!_isRouteNotFound(err)) {
-            rethrow;
+        if (AuthStorage.isTester) {
+          await TesterDataService.upsertRoster(payload: payload);
+        } else {
+          try {
+            await _api().post('/addRoster', data: payload);
+          } on DioException catch (err) {
+            if (!_isRouteNotFound(err)) {
+              rethrow;
+            }
+            await _api().post('/createRoster', data: payload);
           }
-          await _api().post('/createRoster', data: payload);
         }
         _showSnack('Roster created successfully');
         if (mounted) {
@@ -1121,7 +1139,11 @@ class _NewRosterPageState extends State<NewRosterPage>
     }
 
     try {
-      await _api().delete('/deleteRoster/$_editRosterId');
+      if (AuthStorage.isTester) {
+        await TesterDataService.deleteRoster(_editRosterId);
+      } else {
+        await _api().delete('/deleteRoster/$_editRosterId');
+      }
       _showSnack('Roster deleted successfully');
       if (mounted) {
         Navigator.of(context).pop();

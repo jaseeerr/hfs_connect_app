@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../app_routes.dart';
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
+import '../services/tester_data_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -78,6 +79,26 @@ class _LoginPageState extends State<LoginPage> {
     final String password = _passwordController.text;
 
     try {
+      if (username == 'testuser' && password == 'password') {
+        await TesterDataService.ensureSeeded();
+        await AuthStorage.saveAdminSession(
+          token: 'tester-token',
+          username: username,
+          user: <String, dynamic>{
+            '_id': 'tester_admin',
+            'name': 'Test User',
+            'superUser': true,
+          },
+          isTester: true,
+        );
+
+        if (!mounted) {
+          return;
+        }
+        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+        return;
+      }
+
       final Dio dio = ApiClient.create(opt: 0);
       final Response<dynamic> response = await dio.post<dynamic>(
         '/login',
@@ -110,6 +131,7 @@ class _LoginPageState extends State<LoginPage> {
         token: token,
         username: username,
         user: user,
+        isTester: false,
       );
 
       if (!mounted) {

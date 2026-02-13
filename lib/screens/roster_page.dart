@@ -8,6 +8,7 @@ import '../app_routes.dart';
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
 import '../services/roster_pdf_service.dart';
+import '../services/tester_data_service.dart';
 import '../widget/app_bottom_nav_bar.dart';
 
 enum _SortOrder { desc, asc }
@@ -333,8 +334,9 @@ class _RosterPageState extends State<RosterPage> {
   Future<({Map<String, String> clients, Map<String, String> guards})>
   _fetchNameLookups() async {
     try {
-      final Response<dynamic> res = await _api().get('/getDateForRoster');
-      final Map<String, dynamic> body = _asMap(res.data);
+      final Map<String, dynamic> body = AuthStorage.isTester
+          ? await TesterDataService.getDateForRosterData()
+          : _asMap((await _api().get('/getDateForRoster')).data);
 
       final Map<String, String> clientNames = <String, String>{};
       final Map<String, String> guardNames = <String, String>{};
@@ -413,23 +415,28 @@ class _RosterPageState extends State<RosterPage> {
     }
 
     try {
-      final Response<dynamic> res = await _api().get('/getRosters');
-      final Map<String, dynamic> body = _asMap(res.data);
-      if (body['ok'] == true) {
-        final List<Map<String, dynamic>> list = _asMapList(body['rosters']);
-        if (mounted) {
-          setState(() {
-            _rosters
-              ..clear()
-              ..addAll(list);
-          });
-        }
+      final List<Map<String, dynamic>> list;
+      if (AuthStorage.isTester) {
+        list = await TesterDataService.getRosters();
       } else {
-        throw Exception(
-          _asString(body['error']).isNotEmpty
-              ? _asString(body['error'])
-              : 'Unable to fetch rosters',
-        );
+        final Response<dynamic> res = await _api().get('/getRosters');
+        final Map<String, dynamic> body = _asMap(res.data);
+        if (body['ok'] != true) {
+          throw Exception(
+            _asString(body['error']).isNotEmpty
+                ? _asString(body['error'])
+                : 'Unable to fetch rosters',
+          );
+        }
+        list = _asMapList(body['rosters']);
+      }
+
+      if (mounted) {
+        setState(() {
+          _rosters
+            ..clear()
+            ..addAll(list);
+        });
       }
     } catch (err) {
       _showSnack(_errorMessage(err), isError: true);
@@ -462,22 +469,26 @@ class _RosterPageState extends State<RosterPage> {
     }
 
     try {
-      final Response<dynamic> res = await _api().delete('/deleteRoster/$id');
-      final Map<String, dynamic> body = _asMap(res.data);
-      if (body['ok'] == true) {
-        if (mounted) {
-          setState(() {
-            _rosters.removeWhere((item) => _asString(item['_id']) == id);
-          });
-        }
-        _showSnack('Roster deleted');
+      if (AuthStorage.isTester) {
+        await TesterDataService.deleteRoster(id);
       } else {
-        throw Exception(
-          _asString(body['error']).isNotEmpty
-              ? _asString(body['error'])
-              : 'Unable to delete roster',
-        );
+        final Response<dynamic> res = await _api().delete('/deleteRoster/$id');
+        final Map<String, dynamic> body = _asMap(res.data);
+        if (body['ok'] != true) {
+          throw Exception(
+            _asString(body['error']).isNotEmpty
+                ? _asString(body['error'])
+                : 'Unable to delete roster',
+          );
+        }
       }
+
+      if (mounted) {
+        setState(() {
+          _rosters.removeWhere((item) => _asString(item['_id']) == id);
+        });
+      }
+      _showSnack('Roster deleted');
     } catch (err) {
       _showSnack(_errorMessage(err), isError: true);
     }

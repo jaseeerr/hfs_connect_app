@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
+import '../services/tester_data_service.dart';
 import '../widget/app_bottom_nav_bar.dart';
 
 class _DashboardColors {
@@ -214,9 +215,14 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     try {
-      final Response<dynamic> res = await _api().get('/on-duty');
-      final Map<String, dynamic> body = _asMap(res.data);
-      final List<Map<String, dynamic>> guards = _asMapList(body['guards']);
+      final List<Map<String, dynamic>> guards;
+      if (AuthStorage.isTester) {
+        guards = await TesterDataService.getOnDutyGuards();
+      } else {
+        final Response<dynamic> res = await _api().get('/on-duty');
+        final Map<String, dynamic> body = _asMap(res.data);
+        guards = _asMapList(body['guards']);
+      }
 
       if (mounted) {
         setState(() {
@@ -250,21 +256,31 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     try {
-      final Response<dynamic> res = await _api().get('/latestRoster');
-      final Map<String, dynamic> body = _asMap(res.data);
-      if (body['ok'] == true) {
-        final Map<String, dynamic> roster = _asMap(body['roster']);
+      if (AuthStorage.isTester) {
+        final Map<String, dynamic>? roster =
+            await TesterDataService.getLatestRoster();
         if (mounted) {
           setState(() {
-            _latestRoster = roster.isEmpty ? null : roster;
+            _latestRoster = roster;
           });
         }
       } else {
-        throw Exception(
-          _asString(body['error']).isNotEmpty
-              ? _asString(body['error'])
-              : 'Failed to load latest roster',
-        );
+        final Response<dynamic> res = await _api().get('/latestRoster');
+        final Map<String, dynamic> body = _asMap(res.data);
+        if (body['ok'] == true) {
+          final Map<String, dynamic> roster = _asMap(body['roster']);
+          if (mounted) {
+            setState(() {
+              _latestRoster = roster.isEmpty ? null : roster;
+            });
+          }
+        } else {
+          throw Exception(
+            _asString(body['error']).isNotEmpty
+                ? _asString(body['error'])
+                : 'Failed to load latest roster',
+          );
+        }
       }
     } catch (err) {
       if (mounted) {

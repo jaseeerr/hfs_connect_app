@@ -11,6 +11,7 @@ class AuthStorage {
   static const String _superUserKey = 'superUser';
   static const String _userKey = 'user';
   static const String _usernameKey = 'username';
+  static const String _isTesterKey = 'isTester';
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -39,10 +40,23 @@ class AuthStorage {
 
   static bool get hasToken => token != null;
 
+  static bool get isTester {
+    if (!Hive.isBoxOpen(_boxName)) {
+      return false;
+    }
+    final dynamic value = Hive.box<dynamic>(_boxName).get(_isTesterKey);
+    if (value is bool) {
+      return value;
+    }
+    final String parsed = (value ?? '').toString().trim().toLowerCase();
+    return parsed == 'true' || parsed == '1';
+  }
+
   static Future<void> saveAdminSession({
     required String token,
     required String username,
     required Map<String, dynamic> user,
+    bool isTester = false,
   }) async {
     final Box<dynamic> box = await _box();
     await box.put(_tokenKey, token);
@@ -50,6 +64,7 @@ class AuthStorage {
     await box.put(_superUserKey, user['superUser'] == true ? 'true' : 'false');
     await box.put(_userKey, jsonEncode(user));
     await box.put(_usernameKey, username);
+    await box.put(_isTesterKey, isTester);
   }
 
   static Future<void> clear() async {
@@ -59,5 +74,6 @@ class AuthStorage {
     await box.delete(_superUserKey);
     await box.delete(_userKey);
     await box.delete(_usernameKey);
+    await box.delete(_isTesterKey);
   }
 }

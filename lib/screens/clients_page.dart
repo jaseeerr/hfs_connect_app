@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
+import '../services/tester_data_service.dart';
 import '../widget/app_bottom_nav_bar.dart';
 
 class _ClientColors {
@@ -239,21 +240,27 @@ class _ClientsPageState extends State<ClientsPage> {
     }
 
     try {
-      final Response<dynamic> response = await _api().get('/clients');
-      final Map<String, dynamic> body = _asMap(response.data);
-
-      if (body['ok'] == true) {
-        if (mounted) {
-          setState(() {
-            _clients = _asMapList(body['data']);
-          });
-        }
+      final List<Map<String, dynamic>> clients;
+      if (AuthStorage.isTester) {
+        clients = await TesterDataService.getClients();
       } else {
-        throw Exception(
-          _asString(body['error']).isNotEmpty
-              ? _asString(body['error'])
-              : 'Failed to load clients',
-        );
+        final Response<dynamic> response = await _api().get('/clients');
+        final Map<String, dynamic> body = _asMap(response.data);
+
+        if (body['ok'] != true) {
+          throw Exception(
+            _asString(body['error']).isNotEmpty
+                ? _asString(body['error'])
+                : 'Failed to load clients',
+          );
+        }
+        clients = _asMapList(body['data']);
+      }
+
+      if (mounted) {
+        setState(() {
+          _clients = clients;
+        });
       }
     } catch (error) {
       _showSnack(_errorMessage(error), isError: true);
@@ -294,23 +301,33 @@ class _ClientsPageState extends State<ClientsPage> {
     String? clientId,
   ) async {
     String logoUrl = formData.logo.trim();
-    if (logoFile != null) {
+    if (AuthStorage.isTester && logoFile != null) {
+      logoUrl =
+          'https://picsum.photos/seed/client_${DateTime.now().millisecondsSinceEpoch}/200/200';
+    } else if (logoFile != null) {
       logoUrl = await _uploadLogoToCloudinary(logoFile);
     }
 
     final Map<String, dynamic> payload = formData.toPayload(logoUrl: logoUrl);
 
-    final Response<dynamic> response = clientId == null || clientId.isEmpty
-        ? await _api().post('/clients', data: payload)
-        : await _api().put('/clients/$clientId', data: payload);
-
-    final Map<String, dynamic> body = _asMap(response.data);
-    if (body['ok'] != true) {
-      throw Exception(
-        _asString(body['error']).isNotEmpty
-            ? _asString(body['error'])
-            : 'Failed to save client',
+    if (AuthStorage.isTester) {
+      await TesterDataService.upsertClient(
+        payload: payload,
+        clientId: clientId,
       );
+    } else {
+      final Response<dynamic> response = clientId == null || clientId.isEmpty
+          ? await _api().post('/clients', data: payload)
+          : await _api().put('/clients/$clientId', data: payload);
+
+      final Map<String, dynamic> body = _asMap(response.data);
+      if (body['ok'] != true) {
+        throw Exception(
+          _asString(body['error']).isNotEmpty
+              ? _asString(body['error'])
+              : 'Failed to save client',
+        );
+      }
     }
 
     await _fetchClients(showLoader: false);
@@ -329,17 +346,21 @@ class _ClientsPageState extends State<ClientsPage> {
     }
 
     try {
-      final Response<dynamic> response = await _api().delete(
-        '/clients/$clientId',
-      );
-      final Map<String, dynamic> body = _asMap(response.data);
-
-      if (body['ok'] != true) {
-        throw Exception(
-          _asString(body['error']).isNotEmpty
-              ? _asString(body['error'])
-              : 'Failed to delete client',
+      if (AuthStorage.isTester) {
+        await TesterDataService.deleteClient(clientId);
+      } else {
+        final Response<dynamic> response = await _api().delete(
+          '/clients/$clientId',
         );
+        final Map<String, dynamic> body = _asMap(response.data);
+
+        if (body['ok'] != true) {
+          throw Exception(
+            _asString(body['error']).isNotEmpty
+                ? _asString(body['error'])
+                : 'Failed to delete client',
+          );
+        }
       }
 
       await _fetchClients(showLoader: false);
