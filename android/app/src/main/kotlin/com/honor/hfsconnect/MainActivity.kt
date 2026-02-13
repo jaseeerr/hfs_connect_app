@@ -1,4 +1,4 @@
-package com.example.hfsconnectapp
+package com.honor.hfsconnect
 
 import io.flutter.embedding.android.FlutterActivity
 

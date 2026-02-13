@@ -6,6 +6,19 @@ import '../services/api_client.dart';
 import '../services/auth_storage.dart';
 import '../services/tester_data_service.dart';
 
+class _LoginColors {
+  const _LoginColors._();
+
+  static const Color primaryBlue = Color(0xFF2563EB);
+  static const Color pureWhite = Color(0xFFFFFFFF);
+  static const Color pageBackground = Color(0xFFF3F4F6);
+  static const Color lightGray = Color(0xFFE5E7EB);
+  static const Color mediumGray = Color(0xFFD1D5DB);
+  static const Color textGray = Color(0xFF6B7280);
+  static const Color darkGray = Color(0xFF1F2937);
+  static const Color danger = Color(0xFFB91C1C);
+}
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -155,121 +168,203 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  InputDecoration _inputDecoration({
+    required String label,
+    required String hint,
+    Widget? suffixIcon,
+    IconData? prefixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: prefixIcon == null
+          ? null
+          : Icon(prefixIcon, color: _LoginColors.primaryBlue, size: 18),
+      suffixIcon: suffixIcon,
+      labelStyle: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: _LoginColors.textGray,
+      ),
+      hintStyle: const TextStyle(color: _LoginColors.textGray, fontSize: 13),
+      filled: true,
+      fillColor: _LoginColors.pureWhite,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _LoginColors.lightGray, width: 1),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _LoginColors.lightGray, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: _LoginColors.primaryBlue,
+          width: 1.2,
+        ),
+      ),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final Widget formCard = Container(
+      decoration: BoxDecoration(
+        color: _LoginColors.pureWhite,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _LoginColors.lightGray),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(22),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Image(
+              image: AssetImage('assets/LogoNoBg.png'),
+              height: 84,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Admin Sign In',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: _LoginColors.darkGray,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Secure access to dashboard and operations',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: _LoginColors.textGray,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (_errorMsg.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: Text(
+                  _errorMsg,
+                  style: const TextStyle(
+                    color: _LoginColors.danger,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _usernameController,
+              textInputAction: TextInputAction.next,
+              decoration: _inputDecoration(
+                label: 'Username',
+                hint: 'admin',
+                prefixIcon: Icons.person_outline_rounded,
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Username is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: !_showPassword,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _onSubmit(),
+              decoration: _inputDecoration(
+                label: 'Password',
+                hint: '********',
+                prefixIcon: Icons.lock_outline_rounded,
+                suffixIcon: TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _showPassword = !_showPassword;
+                    });
+                  },
+                  child: Text(_showPassword ? 'Hide' : 'Show'),
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Password is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _loading ? null : _onSubmit,
+              style: FilledButton.styleFrom(
+                backgroundColor: _LoginColors.primaryBlue,
+                disabledBackgroundColor: _LoginColors.mediumGray,
+                foregroundColor: _LoginColors.pureWhite,
+                minimumSize: const Size(0, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              icon: Icon(
+                _loading ? Icons.hourglass_top_rounded : Icons.login_rounded,
+                size: 18,
+              ),
+              label: Text(_loading ? 'Signing in...' : 'Sign In'),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Scaffold(
+      backgroundColor: _LoginColors.pageBackground,
       body: Container(
         width: double.infinity,
-        color: const Color(0xFFF9FAFB),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
-                elevation: 6,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'HFSConnect - Admin',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        if (_errorMsg.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF2F2),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: const Color(0xFFFECACA),
-                              ),
-                            ),
-                            child: Text(
-                              _errorMsg,
-                              style: const TextStyle(
-                                color: Color(0xFFB91C1C),
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Username',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _usernameController,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            hintText: 'admin',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Username is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        const Text(
-                          'Password',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: !_showPassword,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _onSubmit(),
-                          decoration: InputDecoration(
-                            hintText: '********',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _showPassword = !_showPassword;
-                                });
-                              },
-                              child: Text(_showPassword ? 'Hide' : 'Show'),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Password is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        FilledButton(
-                          onPressed: _loading ? null : _onSubmit,
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: Colors.black,
-                            disabledBackgroundColor: Colors.black45,
-                          ),
-                          child: Text(_loading ? 'Signing in...' : 'Sign In'),
-                        ),
-                      ],
-                    ),
-                  ),
+        decoration: const BoxDecoration(color: _LoginColors.pageBackground),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 980),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: formCard,
+                    );
+                  },
                 ),
               ),
             ),

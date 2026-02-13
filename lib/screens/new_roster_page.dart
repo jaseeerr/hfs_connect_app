@@ -1861,38 +1861,37 @@ class _NewRosterPageState extends State<NewRosterPage>
       hoverable: true,
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       backgroundColor: isSelected ? AppColors.primaryBlue : AppColors.pureWhite,
       border: Border.all(
         color: isSelected ? AppColors.primaryBlue : AppColors.mediumGray,
         width: 1,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            clientName,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: isSelected ? AppColors.pureWhite : AppColors.darkGray,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
           if (hasAssignments) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Has roster',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: isSelected
-                    ? AppColors.pureWhite.withValues(alpha: 0.9)
-                    : AppColors.textGray,
-              ),
+            Icon(
+              Icons.check_circle_rounded,
+              size: 14,
+              color: isSelected
+                  ? AppColors.pureWhite.withValues(alpha: 0.95)
+                  : AppColors.primaryBlue,
             ),
+            const SizedBox(width: 6),
           ],
+          Flexible(
+            child: Text(
+              clientName,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppColors.pureWhite : AppColors.darkGray,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

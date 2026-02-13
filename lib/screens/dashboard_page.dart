@@ -719,6 +719,7 @@ class _DashboardPageState extends State<DashboardPage> {
               final Widget filter = DropdownButtonFormField<String>(
                 key: ValueKey<String>(_selectedClientValue),
                 initialValue: _selectedClientValue,
+                isExpanded: true,
                 decoration: InputDecoration(
                   prefixIcon: const Icon(
                     Icons.filter_list_rounded,
@@ -754,7 +755,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 items: [
                   DropdownMenuItem<String>(
                     value: _allClientsValue,
-                    child: Text('All Clients (${_onDutyGuards.length})'),
+                    child: Text(
+                      'All Clients (${_onDutyGuards.length})',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   ...clients.map((clientName) {
                     final int count = _onDutyGuards.where((g) {
@@ -762,7 +767,11 @@ class _DashboardPageState extends State<DashboardPage> {
                     }).length;
                     return DropdownMenuItem<String>(
                       value: clientName,
-                      child: Text('$clientName ($count)'),
+                      child: Text(
+                        '$clientName ($count)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     );
                   }),
                 ],
