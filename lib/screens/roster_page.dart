@@ -156,6 +156,21 @@ class _RosterPageState extends State<RosterPage> {
     return value.toString();
   }
 
+  String _extractId(dynamic value) {
+    if (value is Map) {
+      final Map<String, dynamic> map = _asMap(value);
+      final String mongoId = _asString(map['_id']).trim();
+      if (mongoId.isNotEmpty) {
+        return mongoId;
+      }
+      final String altId = _asString(map['id']).trim();
+      if (altId.isNotEmpty) {
+        return altId;
+      }
+    }
+    return _asString(value).trim();
+  }
+
   DateTime? _asDate(dynamic value) {
     final String raw = _asString(value).trim();
     if (raw.isEmpty) {
@@ -246,7 +261,10 @@ class _RosterPageState extends State<RosterPage> {
     return days;
   }
 
-  String _guardNameFromAssignment(Map<String, dynamic> assignment) {
+  String _guardNameFromAssignment(
+    Map<String, dynamic> assignment, {
+    required Map<String, String> guardNameById,
+  }) {
     final String explicitName = _asString(assignment['guardName']).trim();
     if (explicitName.isNotEmpty) {
       return explicitName;
@@ -259,6 +277,19 @@ class _RosterPageState extends State<RosterPage> {
       if (name.isNotEmpty) {
         return name;
       }
+      final String fullName = _asString(guardMap['fullName']).trim();
+      if (fullName.isNotEmpty) {
+        return fullName;
+      }
+      final String guardId = _extractId(guardMap);
+      if (guardId.isNotEmpty && guardNameById[guardId] != null) {
+        return guardNameById[guardId]!;
+      }
+    }
+
+    final String guardId = _extractId(assignment['guardId']);
+    if (guardId.isNotEmpty && guardNameById[guardId] != null) {
+      return guardNameById[guardId]!;
     }
 
     final String fallbackName = _asString(assignment['name']).trim();
@@ -269,7 +300,10 @@ class _RosterPageState extends State<RosterPage> {
     return 'Unknown';
   }
 
-  String _clientNameFromEntry(Map<String, dynamic> clientMap) {
+  String _clientNameFromEntry(
+    Map<String, dynamic> clientMap, {
+    required Map<String, String> clientNameById,
+  }) {
     final String explicitName = _asString(clientMap['name']).trim();
     if (explicitName.isNotEmpty) {
       return explicitName;
@@ -282,9 +316,49 @@ class _RosterPageState extends State<RosterPage> {
       if (nestedName.isNotEmpty) {
         return nestedName;
       }
+      final String nestedId = _extractId(nestedClient);
+      if (nestedId.isNotEmpty && clientNameById[nestedId] != null) {
+        return clientNameById[nestedId]!;
+      }
+    }
+
+    final String clientId = _extractId(clientMap['clientId']);
+    if (clientId.isNotEmpty && clientNameById[clientId] != null) {
+      return clientNameById[clientId]!;
     }
 
     return 'Unknown Venue';
+  }
+
+  Future<({Map<String, String> clients, Map<String, String> guards})>
+  _fetchNameLookups() async {
+    try {
+      final Response<dynamic> res = await _api().get('/getDateForRoster');
+      final Map<String, dynamic> body = _asMap(res.data);
+
+      final Map<String, String> clientNames = <String, String>{};
+      final Map<String, String> guardNames = <String, String>{};
+
+      for (final Map<String, dynamic> client in _asMapList(body['clients'])) {
+        final String id = _extractId(client);
+        final String name = _asString(client['name']).trim();
+        if (id.isNotEmpty && name.isNotEmpty) {
+          clientNames[id] = name;
+        }
+      }
+
+      for (final Map<String, dynamic> guard in _asMapList(body['guards'])) {
+        final String id = _extractId(guard);
+        final String name = _asString(guard['name']).trim();
+        if (id.isNotEmpty && name.isNotEmpty) {
+          guardNames[id] = name;
+        }
+      }
+
+      return (clients: clientNames, guards: guardNames);
+    } catch (_) {
+      return (clients: <String, String>{}, guards: <String, String>{});
+    }
   }
 
   void _showSnack(String message, {bool isError = false}) {
@@ -460,6 +534,8 @@ class _RosterPageState extends State<RosterPage> {
   List<RosterPdfClient> _buildPdfClientsForRoster({
     required Map<String, dynamic> roster,
     required List<DateTime> dateRange,
+    required Map<String, String> clientNameById,
+    required Map<String, String> guardNameById,
   }) {
     final Set<String> validDateKeys = dateRange.map(_dateKey).toSet();
     final List<dynamic> rosterClients = _asList(roster['clients']);
@@ -467,7 +543,10 @@ class _RosterPageState extends State<RosterPage> {
 
     for (final dynamic clientValue in rosterClients) {
       final Map<String, dynamic> clientMap = _asMap(clientValue);
-      final String clientName = _clientNameFromEntry(clientMap);
+      final String clientName = _clientNameFromEntry(
+        clientMap,
+        clientNameById: clientNameById,
+      );
 
       final Map<String, List<RosterPdfAssignment>> assignmentsByDate =
           <String, List<RosterPdfAssignment>>{
@@ -489,7 +568,10 @@ class _RosterPageState extends State<RosterPage> {
           final Map<String, dynamic> assignmentMap = _asMap(assignmentValue);
           parsed.add(
             RosterPdfAssignment(
-              guardName: _guardNameFromAssignment(assignmentMap),
+              guardName: _guardNameFromAssignment(
+                assignmentMap,
+                guardNameById: guardNameById,
+              ),
               checkInTime:
                   _asString(assignmentMap['checkInTime']).trim().isEmpty
                   ? '09:00'
@@ -524,10 +606,15 @@ class _RosterPageState extends State<RosterPage> {
       return;
     }
 
+    final ({Map<String, String> clients, Map<String, String> guards})
+    nameLookups = await _fetchNameLookups();
+
     final List<DateTime> dateRange = _buildDateRange(startDate, endDate);
     final List<RosterPdfClient> clients = _buildPdfClientsForRoster(
       roster: roster,
       dateRange: dateRange,
+      clientNameById: nameLookups.clients,
+      guardNameById: nameLookups.guards,
     );
 
     if (clients.isEmpty) {

@@ -2398,17 +2398,24 @@ class _NewRosterPageState extends State<NewRosterPage>
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: initialTime,
+      orientation: Orientation.portrait,
       builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.primaryBlue,
-              onPrimary: AppColors.pureWhite,
-              surface: AppColors.pureWhite,
-              onSurface: AppColors.darkGray,
-            ),
+        final MediaQueryData mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: mediaQuery.textScaler.clamp(maxScaleFactor: 1.1),
           ),
-          child: child!,
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: AppColors.primaryBlue,
+                onPrimary: AppColors.pureWhite,
+                surface: AppColors.pureWhite,
+                onSurface: AppColors.darkGray,
+              ),
+            ),
+            child: child!,
+          ),
         );
       },
     );

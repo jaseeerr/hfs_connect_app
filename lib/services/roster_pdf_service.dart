@@ -23,8 +23,45 @@ class RosterPdfClient {
   final Map<String, List<RosterPdfAssignment>> assignmentsByDate;
 }
 
+class _RosterPdfRow {
+  const _RosterPdfRow({
+    required this.clientName,
+    required this.time,
+    required this.venueColor,
+    required this.rowHeight,
+    required this.showIdentity,
+    required this.isFirstSegment,
+    required this.segmentAssignmentsByDate,
+  });
+
+  final String clientName;
+  final String time;
+  final PdfColor venueColor;
+  final double rowHeight;
+  final bool showIdentity;
+  final bool isFirstSegment;
+  final Map<String, List<RosterPdfAssignment>> segmentAssignmentsByDate;
+
+  _RosterPdfRow copyWith({bool? showIdentity}) {
+    return _RosterPdfRow(
+      clientName: clientName,
+      time: time,
+      venueColor: venueColor,
+      rowHeight: rowHeight,
+      showIdentity: showIdentity ?? this.showIdentity,
+      isFirstSegment: isFirstSegment,
+      segmentAssignmentsByDate: segmentAssignmentsByDate,
+    );
+  }
+}
+
 class RosterPdfService {
   RosterPdfService._();
+
+  static const int _assignmentsPerSegment = 8;
+  static const double _tableHeaderHeight = 24;
+  static const double _firstPageTableHeightBudget = 430;
+  static const double _otherPageTableHeightBudget = 520;
 
   static Future<void> shareRosterPdf({
     required DateTime startDate,
@@ -45,8 +82,17 @@ class RosterPdfService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.fromLTRB(14, 14, 14, 14),
+        // The default max pages in MultiPage is low for large rosters.
+        // Increase it to avoid TooManyPagesException without changing layout.
+        maxPages: 500,
         build: (_) {
-          return <pw.Widget>[
+          final List<_RosterPdfRow> tableRows = _buildRowsForTable(
+            clients: clients,
+            dateRange: dateRange,
+          );
+          final List<List<_RosterPdfRow>> pages = _paginateRows(tableRows);
+
+          final List<pw.Widget> content = <pw.Widget>[
             pw.Center(
               child: pw.Image(
                 logoImage,
@@ -74,8 +120,25 @@ class RosterPdfService {
               ),
             ),
             pw.SizedBox(height: 7),
-            _buildPdfRosterTable(clients: clients, dateRange: dateRange),
+            _buildPdfRosterTable(
+              dataRows: pages.isNotEmpty ? pages.first : <_RosterPdfRow>[],
+              dateRange: dateRange,
+            ),
           ];
+
+          if (pages.length > 1) {
+            for (int pageIndex = 1; pageIndex < pages.length; pageIndex++) {
+              content.add(pw.NewPage());
+              content.add(
+                _buildPdfRosterTable(
+                  dataRows: pages[pageIndex],
+                  dateRange: dateRange,
+                ),
+              );
+            }
+          }
+
+          return content;
         },
       ),
     );
@@ -149,12 +212,41 @@ class RosterPdfService {
   static double _rowHeightForClient(
     RosterPdfClient client,
     List<DateTime> dateRange,
+    int segmentIndex,
   ) {
     const double minHeight = 24;
     const double chipHeight = 22;
     const double chipSpacing = 3;
     const double verticalPadding = 4;
 
+    int maxSegmentAssignments = 0;
+    for (final DateTime date in dateRange) {
+      final int count =
+          (client.assignmentsByDate[_dateKey(date)] ?? <RosterPdfAssignment>[])
+              .length;
+      final int start = segmentIndex * _assignmentsPerSegment;
+      final int end = math.min(start + _assignmentsPerSegment, count);
+      final int segmentCount = end > start ? end - start : 0;
+      if (segmentCount > maxSegmentAssignments) {
+        maxSegmentAssignments = segmentCount;
+      }
+    }
+
+    if (maxSegmentAssignments <= 0) {
+      return minHeight;
+    }
+
+    final double chipsHeight =
+        (maxSegmentAssignments * chipHeight) +
+        ((maxSegmentAssignments - 1) * chipSpacing) +
+        (verticalPadding * 2);
+    return math.max(minHeight, chipsHeight);
+  }
+
+  static int _segmentCountForClient(
+    RosterPdfClient client,
+    List<DateTime> dateRange,
+  ) {
     int maxAssignments = 0;
     for (final DateTime date in dateRange) {
       final int count =
@@ -164,16 +256,25 @@ class RosterPdfService {
         maxAssignments = count;
       }
     }
-
     if (maxAssignments <= 0) {
-      return minHeight;
+      return 1;
     }
+    return (maxAssignments / _assignmentsPerSegment).ceil();
+  }
 
-    final double chipsHeight =
-        (maxAssignments * chipHeight) +
-        ((maxAssignments - 1) * chipSpacing) +
-        (verticalPadding * 2);
-    return math.max(minHeight, chipsHeight);
+  static List<RosterPdfAssignment> _segmentAssignmentsForCell(
+    List<RosterPdfAssignment> assignments,
+    int segmentIndex,
+  ) {
+    final int start = segmentIndex * _assignmentsPerSegment;
+    if (start >= assignments.length) {
+      return <RosterPdfAssignment>[];
+    }
+    final int end = math.min(
+      start + _assignmentsPerSegment,
+      assignments.length,
+    );
+    return assignments.sublist(start, end);
   }
 
   static PdfColor _pdfColor(int r, int g, int b) {
@@ -278,7 +379,7 @@ class RosterPdfService {
     );
   }
 
-  static pw.Widget _buildPdfRosterTable({
+  static List<_RosterPdfRow> _buildRowsForTable({
     required List<RosterPdfClient> clients,
     required List<DateTime> dateRange,
   }) {
@@ -292,6 +393,103 @@ class RosterPdfService {
       _pdfColor(224, 231, 255),
       _pdfColor(209, 250, 229),
     ];
+
+    final List<_RosterPdfRow> rows = <_RosterPdfRow>[];
+
+    for (int clientIdx = 0; clientIdx < clients.length; clientIdx++) {
+      final RosterPdfClient client = clients[clientIdx];
+      final String clientName = client.name.toUpperCase();
+      final PdfColor venueColor = venueColors[clientIdx % venueColors.length];
+      final String time = _primaryTimeForClient(client);
+      final int segmentCount = _segmentCountForClient(client, dateRange);
+
+      for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++) {
+        final bool isFirstSegment = segmentIndex == 0;
+        final double rowHeight = _rowHeightForClient(
+          client,
+          dateRange,
+          segmentIndex,
+        );
+
+        final Map<String, List<RosterPdfAssignment>> segmentByDate =
+            <String, List<RosterPdfAssignment>>{};
+
+        for (final DateTime date in dateRange) {
+          final String dateKey = _dateKey(date);
+          final List<RosterPdfAssignment> assignments =
+              client.assignmentsByDate[dateKey] ?? <RosterPdfAssignment>[];
+          segmentByDate[dateKey] = _segmentAssignmentsForCell(
+            assignments,
+            segmentIndex,
+          );
+        }
+
+        rows.add(
+          _RosterPdfRow(
+            clientName: clientName,
+            time: time,
+            venueColor: venueColor,
+            rowHeight: rowHeight,
+            showIdentity: isFirstSegment,
+            isFirstSegment: isFirstSegment,
+            segmentAssignmentsByDate: segmentByDate,
+          ),
+        );
+      }
+    }
+
+    return rows;
+  }
+
+  static List<List<_RosterPdfRow>> _paginateRows(List<_RosterPdfRow> rows) {
+    if (rows.isEmpty) {
+      return <List<_RosterPdfRow>>[];
+    }
+
+    final List<List<_RosterPdfRow>> pages = <List<_RosterPdfRow>>[];
+    int cursor = 0;
+    bool firstPage = true;
+
+    while (cursor < rows.length) {
+      final double pageBudget = firstPage
+          ? _firstPageTableHeightBudget
+          : _otherPageTableHeightBudget;
+      double usedHeight = _tableHeaderHeight;
+      final List<_RosterPdfRow> pageRows = <_RosterPdfRow>[];
+
+      while (cursor < rows.length) {
+        final _RosterPdfRow row = rows[cursor];
+        final bool willOverflow =
+            pageRows.isNotEmpty && (usedHeight + row.rowHeight > pageBudget);
+        if (willOverflow) {
+          break;
+        }
+        pageRows.add(row);
+        usedHeight += row.rowHeight;
+        cursor += 1;
+      }
+
+      if (pageRows.isEmpty) {
+        pageRows.add(rows[cursor]);
+        cursor += 1;
+      }
+
+      final _RosterPdfRow firstRow = pageRows.first;
+      if (!firstRow.showIdentity) {
+        pageRows[0] = firstRow.copyWith(showIdentity: true);
+      }
+
+      pages.add(pageRows);
+      firstPage = false;
+    }
+
+    return pages;
+  }
+
+  static pw.Widget _buildPdfRosterTable({
+    required List<_RosterPdfRow> dataRows,
+    required List<DateTime> dateRange,
+  }) {
     final PdfColor headerColor = _pdfColor(209, 213, 219);
     final PdfColor headerTextColor = _pdfColor(31, 41, 55);
     final PdfColor timeColor = _pdfColor(243, 244, 246);
@@ -306,8 +504,9 @@ class RosterPdfService {
       columnWidths[i + 2] = const pw.FlexColumnWidth();
     }
 
-    final List<pw.TableRow> rows = <pw.TableRow>[
+    final List<pw.TableRow> headerRows = <pw.TableRow>[
       pw.TableRow(
+        repeat: true,
         children: <pw.Widget>[
           _pdfTextCell(
             text: 'VENUES',
@@ -350,38 +549,34 @@ class RosterPdfService {
       ),
     ];
 
-    for (int clientIdx = 0; clientIdx < clients.length; clientIdx++) {
-      final RosterPdfClient client = clients[clientIdx];
-      final String clientName = client.name.toUpperCase();
-      final PdfColor venueColor = venueColors[clientIdx % venueColors.length];
-      final String time = _primaryTimeForClient(client);
-      final double rowHeight = _rowHeightForClient(client, dateRange);
+    final List<pw.TableRow> bodyRows = <pw.TableRow>[];
 
-      rows.add(
+    for (final _RosterPdfRow row in dataRows) {
+      bodyRows.add(
         pw.TableRow(
           children: <pw.Widget>[
             _pdfTextCell(
-              text: clientName,
-              backgroundColor: venueColor,
+              text: row.clientName,
+              backgroundColor: row.venueColor,
               textColor: _pdfColor(31, 41, 55),
               isBold: true,
               fontSize: 7.6,
               alignment: pw.Alignment.centerLeft,
-              height: rowHeight,
+              height: row.rowHeight,
               padding: const pw.EdgeInsets.symmetric(
                 horizontal: 6,
                 vertical: 4,
               ),
             ),
             _pdfTextCell(
-              text: time,
+              text: row.time,
               backgroundColor: timeColor,
               textColor: _pdfColor(31, 41, 55),
               fontSize: 7.6,
               isBold: true,
               alignment: pw.Alignment.center,
               textAlign: pw.TextAlign.center,
-              height: rowHeight,
+              height: row.rowHeight,
               padding: const pw.EdgeInsets.symmetric(
                 horizontal: 6,
                 vertical: 4,
@@ -389,10 +584,11 @@ class RosterPdfService {
             ),
             ...dateRange.map((date) {
               final String dateKey = _dateKey(date);
-              final List<RosterPdfAssignment> assignments =
-                  client.assignmentsByDate[dateKey] ?? <RosterPdfAssignment>[];
+              final List<RosterPdfAssignment> segmentAssignments =
+                  row.segmentAssignmentsByDate[dateKey] ??
+                  <RosterPdfAssignment>[];
 
-              if (assignments.isEmpty) {
+              if (segmentAssignments.isEmpty) {
                 return _pdfTextCell(
                   text: 'N/A',
                   backgroundColor: naColor,
@@ -401,7 +597,7 @@ class RosterPdfService {
                   fontSize: 7.4,
                   alignment: pw.Alignment.center,
                   textAlign: pw.TextAlign.center,
-                  height: rowHeight,
+                  height: row.rowHeight,
                   padding: const pw.EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 4,
@@ -411,18 +607,18 @@ class RosterPdfService {
 
               return _pdfCell(
                 backgroundColor: PdfColors.white,
-                height: rowHeight,
+                height: row.rowHeight,
                 alignment: pw.Alignment.topLeft,
                 padding: const pw.EdgeInsets.all(4),
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: <pw.Widget>[
-                    for (int i = 0; i < assignments.length; i++)
+                    for (int i = 0; i < segmentAssignments.length; i++)
                       pw.Padding(
                         padding: pw.EdgeInsets.only(
-                          bottom: i == assignments.length - 1 ? 0 : 3,
+                          bottom: i == segmentAssignments.length - 1 ? 0 : 3,
                         ),
-                        child: _pdfAssignmentChip(assignments[i]),
+                        child: _pdfAssignmentChip(segmentAssignments[i]),
                       ),
                   ],
                 ),
@@ -433,10 +629,12 @@ class RosterPdfService {
       );
     }
 
+    final List<pw.TableRow> allRows = <pw.TableRow>[...headerRows, ...bodyRows];
+
     return pw.Table(
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
       columnWidths: columnWidths,
-      children: rows,
+      children: allRows,
     );
   }
 }
