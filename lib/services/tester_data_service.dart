@@ -784,6 +784,213 @@ class TesterDataService {
     return _deepCopyMap(created);
   }
 
+  static Future<Map<String, dynamic>> getAttendanceReport({
+    required String startDate,
+    required String endDate,
+    String? guardId,
+  }) async {
+    await ensureSeeded();
+
+    final DateTime start = _asDate(startDate) ?? DateTime.now();
+    final DateTime end = _asDate(endDate) ?? DateTime.now();
+
+    final List<Map<String, dynamic>> guards = await getGuards();
+    final List<Map<String, dynamic>> clients = await getClients();
+    final List<Map<String, dynamic>> rosters = await getRosters();
+
+    if (guards.isEmpty) {
+      return <String, dynamic>{
+        'guard': <String, dynamic>{},
+        'clients': <Map<String, dynamic>>[],
+        'insights': <String, dynamic>{'totalHours': 0, 'totalShifts': 0},
+      };
+    }
+
+    final Map<String, dynamic> guard = guardId == null || guardId.trim().isEmpty
+        ? guards.first
+        : guards.firstWhere(
+            (g) => _asString(g['_id']).trim() == guardId.trim(),
+            orElse: () => guards.first,
+          );
+    final String resolvedGuardId = _asString(guard['_id']).trim();
+
+    final Map<String, Map<String, dynamic>> clientById =
+        <String, Map<String, dynamic>>{
+          for (final Map<String, dynamic> c in clients) _asString(c['_id']): c,
+        };
+
+    final Map<String, List<Map<String, dynamic>>> shiftsByClientId =
+        <String, List<Map<String, dynamic>>>{};
+
+    for (final Map<String, dynamic> roster in rosters) {
+      final List<Map<String, dynamic>> rosterClients = _asMapList(
+        roster['clients'],
+      );
+      for (final Map<String, dynamic> rosterClient in rosterClients) {
+        final String clientId = _asString(rosterClient['clientId']).trim();
+        if (clientId.isEmpty) {
+          continue;
+        }
+
+        for (final Map<String, dynamic> dateItem in _asMapList(
+          rosterClient['dates'],
+        )) {
+          final String dateRaw = _asString(dateItem['date']).trim();
+          final DateTime? date = _asDate(dateRaw);
+          if (date == null) {
+            continue;
+          }
+
+          final DateTime normalizedDate = DateTime(
+            date.year,
+            date.month,
+            date.day,
+          );
+          if (normalizedDate.isBefore(
+                DateTime(start.year, start.month, start.day),
+              ) ||
+              normalizedDate.isAfter(DateTime(end.year, end.month, end.day))) {
+            continue;
+          }
+
+          for (final Map<String, dynamic> assignment in _asMapList(
+            dateItem['assignments'],
+          )) {
+            final String assignmentGuardId = _asString(
+              assignment['guardId'],
+            ).trim();
+            if (assignmentGuardId != resolvedGuardId) {
+              continue;
+            }
+
+            final String checkInTime =
+                _asString(assignment['checkInTime']).trim().isEmpty
+                ? '09:00'
+                : _asString(assignment['checkInTime']).trim();
+
+            final DateTime checkInAt =
+                DateTime.tryParse(
+                  '${_dateKey(normalizedDate)}T$checkInTime:00',
+                ) ??
+                DateTime(
+                  normalizedDate.year,
+                  normalizedDate.month,
+                  normalizedDate.day,
+                  9,
+                );
+            final DateTime checkOutAt = checkInAt.add(const Duration(hours: 8));
+            const double hours = 8;
+            final double payPerHour = (guard['defaultPay'] is num)
+                ? (guard['defaultPay'] as num).toDouble()
+                : 0;
+            final double pay = payPerHour * hours;
+
+            shiftsByClientId.putIfAbsent(
+              clientId,
+              () => <Map<String, dynamic>>[],
+            );
+            shiftsByClientId[clientId]!.add(<String, dynamic>{
+              'shiftId': 'shift_${checkInAt.millisecondsSinceEpoch}_$clientId',
+              'start': checkInAt.toUtc().toIso8601String(),
+              'checkInAt': checkInAt.toUtc().toIso8601String(),
+              'checkOutAt': checkOutAt.toUtc().toIso8601String(),
+              'hours': hours,
+              'roundOffHours': hours,
+              'payPerHour': payPerHour,
+              'pay': pay,
+              'checkInLocation': _asString(
+                clientById[clientId]?['locationUrl'],
+              ),
+              'checkOutLocation': _asString(
+                clientById[clientId]?['locationUrl'],
+              ),
+              'clientLocationUrl': _asString(
+                clientById[clientId]?['locationUrl'],
+              ),
+              'note': '',
+            });
+          }
+        }
+      }
+    }
+
+    final List<Map<String, dynamic>> reportClients = <Map<String, dynamic>>[];
+    for (final MapEntry<String, List<Map<String, dynamic>>> entry
+        in shiftsByClientId.entries) {
+      final String clientId = entry.key;
+      final Map<String, dynamic> client =
+          clientById[clientId] ?? <String, dynamic>{};
+      final List<Map<String, dynamic>> shifts = entry.value;
+      final double totalHours = shifts.fold<double>(
+        0,
+        (sum, shift) => sum + (shift['roundOffHours'] as double? ?? 0),
+      );
+      final double totalPay = shifts.fold<double>(
+        0,
+        (sum, shift) => sum + (shift['pay'] as double? ?? 0),
+      );
+      reportClients.add(<String, dynamic>{
+        'clientId': clientId,
+        'clientName': _asString(client['name']),
+        'address': _asString(client['address']),
+        'locationUrl': _asString(client['locationUrl']),
+        'totalShifts': shifts.length,
+        'totalHours': totalHours,
+        'totalPay': totalPay,
+        'shifts': shifts,
+      });
+    }
+
+    final double totalHours = reportClients.fold<double>(
+      0,
+      (sum, c) => sum + ((c['totalHours'] as double?) ?? 0),
+    );
+    final int totalShifts = reportClients.fold<int>(
+      0,
+      (sum, c) => sum + ((c['totalShifts'] as int?) ?? 0),
+    );
+    final double totalPay = reportClients.fold<double>(
+      0,
+      (sum, c) => sum + ((c['totalPay'] as double?) ?? 0),
+    );
+
+    return <String, dynamic>{
+      'guard': <String, dynamic>{
+        'guardId': _asString(guard['_id']),
+        'name': _asString(guard['name']),
+        'phone': _asString(guard['phone']),
+        'photo': _asString(guard['photo']),
+        'emiratesIdVerified': guard['emiratesId'] is Map
+            ? (guard['emiratesId']['verified'] == true)
+            : false,
+        'passportVerified': guard['passport'] is Map
+            ? (guard['passport']['verified'] == true)
+            : false,
+        'siraVerified': guard['sira'] is Map
+            ? (guard['sira']['verified'] == true)
+            : false,
+      },
+      'clients': reportClients,
+      'insights': <String, dynamic>{
+        'totalHours': totalHours,
+        'totalShifts': totalShifts,
+        'totalPay': totalPay,
+      },
+    };
+  }
+
+  static Future<Map<String, dynamic>> getAttendanceReportForGuard({
+    required String guardId,
+    required String startDate,
+    required String endDate,
+  }) {
+    return getAttendanceReport(
+      startDate: startDate,
+      endDate: endDate,
+      guardId: guardId,
+    );
+  }
+
   static Future<void> deleteRoster(String rosterId) async {
     await ensureSeeded();
     final Box<dynamic> box = await _box();

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_client.dart';
 import '../services/auth_storage.dart';
@@ -1110,21 +1111,32 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _openUrl(String raw) async {
-    // Keep it simple: delegate to platform browser via Link widget semantics.
-    // For now, using dialog to show URL when deep-link package isn't configured.
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Open Link'),
-        content: SelectableText(raw),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+    final Uri? uri = Uri.tryParse(raw.trim());
+    if (uri == null) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid location URL'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final bool launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
     );
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open location'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _linkButton({

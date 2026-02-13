@@ -9,10 +9,16 @@ import 'screens/clients_page.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/guards_page.dart';
 import 'screens/home_page.dart';
+import 'screens/attendance_page.dart';
+import 'screens/attendance_overview_page.dart';
+import 'screens/attendance_v2_page.dart';
+import 'screens/generate_invoice_page.dart';
 import 'screens/login_page.dart';
 import 'screens/new_roster_page.dart';
 import 'screens/roster_page.dart';
 import 'screens/splash_page.dart';
+import 'screens/invoice_list_page.dart';
+import 'screens/invoice_view_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +39,12 @@ class HfsConnectApp extends StatelessWidget {
     AppRoutes.rosterView,
     AppRoutes.guards,
     AppRoutes.clients,
+    AppRoutes.attendance,
+    AppRoutes.attendanceV2,
+    AppRoutes.attendanceGuard,
+    AppRoutes.generateInvoice,
+    AppRoutes.invoiceList,
+    AppRoutes.invoiceView,
   };
 
   String? _extractRosterId(Object? args) {
@@ -43,6 +55,19 @@ class HfsConnectApp extends StatelessWidget {
     if (args is Map) {
       final Map<String, dynamic> map = Map<String, dynamic>.from(args);
       final String id = (map['rosterId'] ?? '').toString().trim();
+      return id.isEmpty ? null : id;
+    }
+    return null;
+  }
+
+  String? _extractGuardId(Object? args) {
+    if (args is String) {
+      final String id = args.trim();
+      return id.isEmpty ? null : id;
+    }
+    if (args is Map) {
+      final Map<String, dynamic> map = Map<String, dynamic>.from(args);
+      final String id = (map['guardId'] ?? '').toString().trim();
       return id.isEmpty ? null : id;
     }
     return null;
@@ -68,6 +93,27 @@ class HfsConnectApp extends StatelessWidget {
         return const GuardsPage();
       case AppRoutes.clients:
         return const ClientsPage();
+      case AppRoutes.attendance:
+        return const AttendanceOverviewPage();
+      case AppRoutes.attendanceV2:
+        return const AttendanceV2Page();
+      case AppRoutes.attendanceGuard:
+        return AttendancePage(guardId: _extractGuardId(args) ?? '');
+      case AppRoutes.generateInvoice:
+        final Map<String, dynamic> map = args is Map
+            ? Map<String, dynamic>.from(args)
+            : <String, dynamic>{};
+        return GenerateInvoicePage(clientData: map['clientData']);
+      case AppRoutes.invoiceList:
+        return const InvoiceListPage();
+      case AppRoutes.invoiceView:
+        final Map<String, dynamic> map = args is Map
+            ? Map<String, dynamic>.from(args)
+            : <String, dynamic>{};
+        return InvoiceViewPage(
+          invoiceId: (map['invoiceId'] ?? '').toString(),
+          initialInvoice: map['invoice'],
+        );
       default:
         return const LoginPage();
     }

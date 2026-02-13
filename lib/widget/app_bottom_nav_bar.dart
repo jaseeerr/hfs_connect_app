@@ -103,6 +103,112 @@ class AppBottomNavBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
+                Theme(
+                  data: Theme.of(
+                    sheetContext,
+                  ).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                    childrenPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.summarize_outlined,
+                      color: Colors.grey.shade600,
+                    ),
+                    title: Text(
+                      'Report',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    children: [
+                      _buildSubMenuItem(
+                        context: sheetContext,
+                        icon: Icons.fact_check_outlined,
+                        label: 'Attendance',
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(context).pushNamed(AppRoutes.attendance);
+                        },
+                        disabled: false,
+                      ),
+                      _buildSubMenuItem(
+                        context: sheetContext,
+                        icon: Icons.assignment_outlined,
+                        label: 'AttendanceV2',
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(
+                            context,
+                          ).pushNamed(AppRoutes.attendanceV2);
+                        },
+                        disabled: false,
+                      ),
+                    ],
+                  ),
+                ),
+                Theme(
+                  data: Theme.of(
+                    sheetContext,
+                  ).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                    childrenPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: Colors.grey.shade600,
+                    ),
+                    title: Text(
+                      'Finance',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    children: [
+                      _buildSubMenuItem(
+                        context: sheetContext,
+                        icon: Icons.receipt_long_outlined,
+                        label: 'Invoice',
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(
+                            context,
+                          ).pushNamed(AppRoutes.invoiceList);
+                        },
+                        disabled: false,
+                      ),
+                      _buildSubMenuItem(
+                        context: sheetContext,
+                        icon: Icons.description_outlined,
+                        label: 'Receipt',
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Not yet ready'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        disabled: true,
+                      ),
+                      _buildSubMenuItem(
+                        context: sheetContext,
+                        icon: Icons.payments_outlined,
+                        label: 'Payment',
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Not yet ready'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                        disabled: true,
+                      ),
+                    ],
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.red),
                   title: const Text(
@@ -119,6 +225,37 @@ class AppBottomNavBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSubMenuItem({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required bool disabled,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 22, right: 6),
+      visualDensity: VisualDensity.compact,
+      leading: Icon(
+        icon,
+        color: disabled ? Colors.grey.shade500 : Colors.blueGrey.shade700,
+        size: 20,
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: disabled ? Colors.grey.shade600 : Colors.blueGrey.shade800,
+          fontSize: 14,
+          fontWeight: disabled ? FontWeight.w400 : FontWeight.w600,
+        ),
+      ),
+      trailing: Text(
+        disabled ? 'Disabled' : '',
+        style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+      ),
+      onTap: onTap,
     );
   }
 
