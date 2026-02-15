@@ -14,14 +14,16 @@ import '../widget/app_bottom_nav_bar.dart';
 enum _SortOrder { desc, asc }
 
 class _RosterColors {
-  static const Color primaryBlue = Color(0xFF2196F3);
+  static const Color primaryBlue = Color(0xFF2563EB);
   static const Color pureWhite = Color(0xFFFFFFFF);
   static const Color offWhite = Color(0xFFF8FAFC);
+  static const Color pageBackground = Color(0xFFF3F4F6);
   static const Color lightGray = Color(0xFFE5E7EB);
   static const Color mediumGray = Color(0xFFD1D5DB);
   static const Color textGray = Color(0xFF6B7280);
   static const Color darkGray = Color(0xFF1F2937);
-  static const Color dangerRed = Color(0xFFDC2626);
+  static const Color warning = Color(0xFFB45309);
+  static const Color warningStripe = Color(0xFFD97706);
 }
 
 class _DeleteRosterDialog extends StatefulWidget {
@@ -90,7 +92,7 @@ class _DeleteRosterDialogState extends State<_DeleteRosterDialog> {
                 }
               : null,
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFEF4444),
+            backgroundColor: _RosterColors.warningStripe,
           ),
           child: Text(_canDelete ? 'Delete' : 'Delete ($_countdownLabel)'),
         ),
@@ -212,11 +214,12 @@ class _RosterPageState extends State<RosterPage> {
     if (date == null) {
       return '--';
     }
+    final DateTime local = date.toLocal();
 
-    final int hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-    final String amPm = date.hour >= 12 ? 'PM' : 'AM';
-    final String minute = date.minute.toString().padLeft(2, '0');
-    return '${date.day.toString().padLeft(2, '0')} ${_monthName(date.month)}, $hour:$minute $amPm';
+    final int hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final String amPm = local.hour >= 12 ? 'PM' : 'AM';
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '${local.day.toString().padLeft(2, '0')} ${_monthName(local.month)}, $hour:$minute $amPm';
   }
 
   String _dateKey(DateTime date) {
@@ -378,8 +381,8 @@ class _RosterPageState extends State<RosterPage> {
           ),
         ),
         backgroundColor: isError
-            ? const Color(0xFFEF4444)
-            : const Color(0xFF10B981),
+            ? _RosterColors.warningStripe
+            : _RosterColors.primaryBlue,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -708,7 +711,7 @@ class _RosterPageState extends State<RosterPage> {
   }
 
   BoxDecoration _buildBackgroundGradient() {
-    return const BoxDecoration(color: _RosterColors.offWhite);
+    return const BoxDecoration(color: _RosterColors.pageBackground);
   }
 
   ButtonStyle _primaryButtonStyle({bool compact = false}) {
@@ -965,6 +968,9 @@ class _RosterPageState extends State<RosterPage> {
     final DateTime? startDate = _asDate(roster['startDate']);
     final DateTime? endDate = _asDate(roster['endDate']);
     final DateTime? createdAt = _asDate(roster['createdAt']);
+    final String createdByUsername = _asString(
+      _asMap(roster['createdBy'])['username'],
+    ).trim();
 
     final int clients = _totalClients(roster);
     final int assignments = _totalAssignments(roster);
@@ -1026,6 +1032,20 @@ class _RosterPageState extends State<RosterPage> {
                     ),
                   ],
                 ),
+                if (createdByUsername.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      'Created by: $createdByUsername',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: _RosterColors.textGray,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Container(
                   width: double.infinity,
@@ -1117,10 +1137,10 @@ class _RosterPageState extends State<RosterPage> {
                       onPressed: id.isEmpty ? null : () => _deleteRoster(id),
                       style: _secondaryButtonStyle(
                         compact: true,
-                        borderColor: _RosterColors.dangerRed.withValues(
+                        borderColor: _RosterColors.warning.withValues(
                           alpha: 0.55,
                         ),
-                        foreground: _RosterColors.dangerRed,
+                        foreground: _RosterColors.warning,
                       ),
                       child: const Icon(Icons.delete_outline_rounded, size: 19),
                     ),
@@ -1264,7 +1284,7 @@ class _RosterPageState extends State<RosterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _RosterColors.offWhite,
+      backgroundColor: _RosterColors.pageBackground,
       body: Container(
         decoration: _buildBackgroundGradient(),
         child: SafeArea(

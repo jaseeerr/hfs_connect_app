@@ -104,9 +104,10 @@ class _AttendanceV2PageState extends State<AttendanceV2Page> {
     if (date == null) {
       return '--';
     }
-    final int hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-    final String amPm = date.hour >= 12 ? 'PM' : 'AM';
-    final String minute = date.minute.toString().padLeft(2, '0');
+    final DateTime local = date.toLocal();
+    final int hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final String amPm = local.hour >= 12 ? 'PM' : 'AM';
+    final String minute = local.minute.toString().padLeft(2, '0');
     final List<String> month = <String>[
       'Jan',
       'Feb',
@@ -121,7 +122,7 @@ class _AttendanceV2PageState extends State<AttendanceV2Page> {
       'Nov',
       'Dec',
     ];
-    return '${date.day.toString().padLeft(2, '0')} ${month[date.month - 1]} ${date.year}, $hour:$minute $amPm';
+    return '${local.day.toString().padLeft(2, '0')} ${month[local.month - 1]} ${local.year}, $hour:$minute $amPm';
   }
 
   double _roundToNearestHalfHour(double hours) {

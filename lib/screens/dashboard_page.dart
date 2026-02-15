@@ -175,10 +175,11 @@ class _DashboardPageState extends State<DashboardPage> {
       return 'Not checked in';
     }
 
-    final int hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-    final String amPm = date.hour >= 12 ? 'PM' : 'AM';
-    final String minute = date.minute.toString().padLeft(2, '0');
-    return '${_monthName(date.month)} ${date.day}, ${date.year} • $hour:$minute $amPm';
+    final DateTime local = date.toLocal();
+    final int hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final String amPm = local.hour >= 12 ? 'PM' : 'AM';
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '${_monthName(local.month)} ${local.day}, ${local.year} • $hour:$minute $amPm';
   }
 
   String _errorMessage(Object err) {

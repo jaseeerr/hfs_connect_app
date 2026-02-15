@@ -12,14 +12,17 @@ import '../services/tester_data_service.dart';
 import '../widget/app_bottom_nav_bar.dart';
 
 class AppColors {
-  static const Color primaryBlue = Color(0xFF2196F3);
+  static const Color primaryBlue = Color(0xFF2563EB);
   static const Color pureWhite = Color(0xFFFFFFFF);
   static const Color offWhite = Color(0xFFF8FAFC);
+  static const Color pageBackground = Color(0xFFF3F4F6);
   static const Color lightGray = Color(0xFFE5E7EB);
   static const Color mediumGray = Color(0xFFD1D5DB);
   static const Color textGray = Color(0xFF6B7280);
   static const Color darkGray = Color(0xFF1F2937);
-  static const Color dangerRed = Color(0xFFDC2626);
+  static const Color warning = Color(0xFFB45309);
+  static const Color warningStripe = Color(0xFFD97706);
+  static const Color dangerRed = warning;
 }
 
 class _DeleteRosterCountdownDialog extends StatefulWidget {
@@ -86,7 +89,7 @@ class _DeleteRosterCountdownDialogState
         FilledButton(
           onPressed: _canDelete ? () => Navigator.of(context).pop(true) : null,
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFEF4444),
+            backgroundColor: AppColors.warningStripe,
           ),
           child: Text(_canDelete ? 'Delete' : _countdownLabel),
         ),
@@ -268,8 +271,8 @@ class _NewRosterPageState extends State<NewRosterPage>
           ),
         ),
         backgroundColor: isError
-            ? const Color(0xFFEF4444)
-            : const Color(0xFF10B981),
+            ? AppColors.warningStripe
+            : AppColors.primaryBlue,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -1247,7 +1250,7 @@ class _NewRosterPageState extends State<NewRosterPage>
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: AppColors.offWhite,
+        backgroundColor: AppColors.pageBackground,
         appBar: _buildAppBar(context),
         body: _loadingSetup
             ? _buildLoadingView()
@@ -1345,7 +1348,7 @@ class _NewRosterPageState extends State<NewRosterPage>
   }
 
   BoxDecoration _buildBackgroundDecoration() {
-    return const BoxDecoration(color: AppColors.offWhite);
+    return const BoxDecoration(color: AppColors.pageBackground);
   }
 
   Widget _buildLoadingView() {

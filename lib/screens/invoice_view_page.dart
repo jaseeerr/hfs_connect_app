@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
@@ -16,12 +15,15 @@ class _InvoiceViewColors {
 
   static const Color primaryBlue = Color(0xFF2563EB);
   static const Color pureWhite = Color(0xFFFFFFFF);
+  static const Color offWhite = Color(0xFFF8FAFC);
   static const Color pageBackground = Color(0xFFF3F4F6);
   static const Color lightGray = Color(0xFFE5E7EB);
   static const Color mediumGray = Color(0xFFD1D5DB);
   static const Color textGray = Color(0xFF6B7280);
   static const Color darkGray = Color(0xFF1F2937);
+  static const Color surfaceMuted = Color(0xFFF8FAFC);
   static const Color warning = Color(0xFFB45309);
+  static const Color warningStripe = Color(0xFFD97706);
 }
 
 class InvoiceViewPage extends StatefulWidget {
@@ -894,86 +896,391 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
     }
   }
 
-  Widget _sectionCard({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _InvoiceViewColors.pureWhite,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _InvoiceViewColors.lightGray),
-      ),
-      child: child,
+  BoxDecoration _backgroundGradient() {
+    return const BoxDecoration(color: _InvoiceViewColors.pageBackground);
+  }
+
+  Widget _glassPanel({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    bool hoverable = true,
+  }) {
+    return _HoverCard(
+      hoverable: hoverable,
+      elevation: 1.5,
+      hoverElevation: 4,
+      borderRadius: BorderRadius.circular(16),
+      borderColor: _InvoiceViewColors.lightGray,
+      child: Padding(padding: padding, child: child),
     );
   }
 
-  Widget _buildTopControls() {
-    return _sectionCard(
-      child: Column(
+  ButtonStyle _outlinedButtonStyle({
+    Color color = _InvoiceViewColors.primaryBlue,
+    Color? borderColor,
+  }) {
+    return OutlinedButton.styleFrom(
+      foregroundColor: color,
+      side: BorderSide(color: borderColor ?? _InvoiceViewColors.mediumGray),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    );
+  }
+
+  Widget _sectionTitle({
+    required IconData icon,
+    required String title,
+    Widget? trailing,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: _InvoiceViewColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _InvoiceViewColors.lightGray),
+          ),
+          child: Icon(icon, size: 18, color: _InvoiceViewColors.primaryBlue),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: _InvoiceViewColors.darkGray,
+            ),
+          ),
+        ),
+        if (trailing != null) trailing,
+      ],
+    );
+  }
+
+  Widget _tinyStatPill({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              color: _InvoiceViewColors.textGray,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _softChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelected,
+      backgroundColor: _InvoiceViewColors.offWhite,
+      selectedColor: _InvoiceViewColors.primaryBlue.withValues(alpha: 0.12),
+      side: BorderSide(
+        color: selected
+            ? _InvoiceViewColors.primaryBlue.withValues(alpha: 0.5)
+            : _InvoiceViewColors.lightGray,
+      ),
+      labelStyle: TextStyle(
+        color: selected
+            ? _InvoiceViewColors.primaryBlue
+            : _InvoiceViewColors.darkGray,
+        fontWeight: FontWeight.w600,
+        fontSize: 12,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      showCheckmark: false,
+    );
+  }
+
+  Widget _detailRow({
+    required String label,
+    required String value,
+    Color valueColor = _InvoiceViewColors.darkGray,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$label:',
+            style: const TextStyle(
+              fontSize: 12,
+              color: _InvoiceViewColors.textGray,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12,
+              color: valueColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyBlock({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return _HoverCard(
+      hoverable: false,
+      elevation: 0,
+      hoverElevation: 0,
+      borderRadius: BorderRadius.circular(14),
+      borderColor: _InvoiceViewColors.lightGray,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
             children: [
-              Expanded(
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'invoice', label: Text('Invoice')),
-                    ButtonSegment(value: 'timesheet', label: Text('Timesheet')),
-                    ButtonSegment(value: 'receipts', label: Text('Receipts')),
-                  ],
-                  selected: <String>{_currentView},
-                  onSelectionChanged: (values) {
-                    setState(() => _currentView = values.first);
-                  },
+              Icon(icon, size: 40, color: _InvoiceViewColors.mediumGray),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: _InvoiceViewColors.darkGray,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _InvoiceViewColors.textGray,
+                  fontWeight: FontWeight.w500,
+                  height: 1.4,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final Map<String, dynamic>? invoice = _invoice;
+    final String invoiceNo = invoice == null
+        ? '-'
+        : _asString(invoice['invoiceNo']).trim().isEmpty
+        ? '-'
+        : _asString(invoice['invoiceNo']).trim();
+    final String client = _clientDisplayName.isEmpty ? '-' : _clientDisplayName;
+    final Color pendingColor = _pending > 0
+        ? _InvoiceViewColors.warningStripe
+        : Colors.green;
+
+    return _glassPanel(
+      hoverable: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _InvoiceViewColors.primaryBlue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  color: Colors.white,
+                  size: 23,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Invoice View',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: _InvoiceViewColors.darkGray,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$invoiceNo • $client',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: _InvoiceViewColors.textGray,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _tinyStatPill(
+                label: 'Total AED',
+                value: _total.toStringAsFixed(2),
+                color: _InvoiceViewColors.primaryBlue,
+              ),
+              _tinyStatPill(
+                label: 'Received AED',
+                value: _totalReceived.toStringAsFixed(2),
+                color: Colors.green,
+              ),
+              _tinyStatPill(
+                label: 'Pending AED',
+                value: _pending.toStringAsFixed(2),
+                color: pendingColor,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopControls() {
+    return _glassPanel(
+      hoverable: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle(icon: Icons.tune_rounded, title: 'Controls'),
+          const SizedBox(height: 12),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'invoice', label: Text('Invoice')),
+              ButtonSegment(value: 'timesheet', label: Text('Timesheet')),
+              ButtonSegment(value: 'receipts', label: Text('Receipts')),
+            ],
+            selected: <String>{_currentView},
+            onSelectionChanged: (values) {
+              setState(() => _currentView = values.first);
+            },
+            style: ButtonStyle(
+              side: WidgetStateProperty.all(
+                const BorderSide(color: _InvoiceViewColors.lightGray),
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return _InvoiceViewColors.primaryBlue.withValues(alpha: 0.12);
+                }
+                return _InvoiceViewColors.pureWhite;
+              }),
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return _InvoiceViewColors.primaryBlue;
+                }
+                return _InvoiceViewColors.darkGray;
+              }),
+              textStyle: WidgetStateProperty.all(
+                const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              FilterChip(
-                label: const Text('Due Date'),
+              _softChip(
+                label: 'Due Date',
                 selected: _includeDueDate,
                 onSelected: (v) => setState(() => _includeDueDate = v),
               ),
-              FilterChip(
-                label: const Text('Tax'),
+              _softChip(
+                label: 'Tax',
                 selected: _includeTax,
                 onSelected: (v) => setState(() => _includeTax = v),
               ),
-              FilterChip(
-                label: const Text('Stamp'),
+              _softChip(
+                label: 'Stamp',
                 selected: _includeStamp,
                 onSelected: (v) => setState(() => _includeStamp = v),
               ),
-              FilterChip(
-                label: const Text('Signature'),
+              _softChip(
+                label: 'Signature',
                 selected: _includeSignature,
                 onSelected: (v) => setState(() => _includeSignature = v),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => setState(() {}),
-                    icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: const Text('Recalc'),
+              OutlinedButton.icon(
+                onPressed: () => setState(() {}),
+                style: _outlinedButtonStyle(),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Recalc'),
+              ),
+              FilledButton.icon(
+                onPressed: _exportingPdf ? null : _exportPdf,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _InvoiceViewColors.primaryBlue,
+                  foregroundColor: _InvoiceViewColors.pureWhite,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(height: 6),
-                  FilledButton.icon(
-                    onPressed: _exportingPdf ? null : _exportPdf,
-                    icon: _exportingPdf
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.download_rounded, size: 16),
-                    label: const Text('Download PDF'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
                   ),
-                ],
+                ),
+                icon: _exportingPdf
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded, size: 16),
+                label: const Text('Download PDF'),
               ),
             ],
           ),
@@ -985,257 +1292,311 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
   Widget _buildInvoiceView() {
     final Map<String, dynamic>? invoice = _invoice;
     if (invoice == null) {
-      return _sectionCard(child: const Text('Invoice not found'));
+      return _emptyBlock(
+        icon: Icons.receipt_long_outlined,
+        title: 'Invoice not found',
+        subtitle: 'The requested invoice is unavailable.',
+      );
     }
     final List<Map<String, dynamic>> items = _asMapList(
       invoice['invoiceItems'],
     );
     final Map<String, dynamic> client = _asMap(invoice['clientId']);
+    final bool unpaid = _pending > 0;
 
     return Column(
       children: [
-        _sectionCard(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final bool stacked = constraints.maxWidth < 760;
-              final Widget left = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _clientDisplayName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _InvoiceViewColors.darkGray,
+        _HoverCard(
+          hoverable: true,
+          elevation: 1.2,
+          hoverElevation: 5,
+          borderRadius: BorderRadius.circular(14),
+          borderColor: _InvoiceViewColors.lightGray,
+          leftAccentColor: unpaid ? _InvoiceViewColors.warningStripe : null,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final bool stacked = constraints.maxWidth < 760;
+                final Widget left = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Client Details',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _InvoiceViewColors.darkGray,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _asString(client['address']),
-                    style: const TextStyle(
-                      color: _InvoiceViewColors.textGray,
-                      fontSize: 12,
+                    const SizedBox(height: 8),
+                    _detailRow(
+                      label: 'Name',
+                      value: _clientDisplayName.isEmpty
+                          ? '-'
+                          : _clientDisplayName,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _asString(client['trn']).isEmpty
-                        ? ''
-                        : 'TRN: ${_asString(client['trn'])}',
-                    style: const TextStyle(
-                      color: _InvoiceViewColors.textGray,
-                      fontSize: 12,
+                    const SizedBox(height: 8),
+                    _detailRow(
+                      label: 'Address',
+                      value: _asString(client['address']).isEmpty
+                          ? '-'
+                          : _asString(client['address']),
                     ),
-                  ),
-                ],
-              );
-              final Widget right = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Invoice Date',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _InvoiceViewColors.textGray,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    _detailRow(
+                      label: 'TRN',
+                      value: _asString(client['trn']).isEmpty
+                          ? '-'
+                          : _asString(client['trn']),
                     ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(_asString(invoice['invoiceDate'])),
-                    trailing: IconButton(
-                      onPressed: () => _pickInvoiceDate('invoiceDate'),
-                      icon: const Icon(Icons.edit_calendar_outlined),
+                  ],
+                );
+                final Widget right = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Invoice Meta',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _InvoiceViewColors.darkGray,
+                      ),
                     ),
-                  ),
-                  TextFormField(
-                    initialValue: _asString(invoice['invoiceNo']),
-                    decoration: const InputDecoration(
-                      labelText: 'Invoice Number',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onChanged: (v) => _setInvoiceField('invoiceNo', v),
-                  ),
-                  if (_includeDueDate) ...[
                     const SizedBox(height: 8),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Due Date'),
-                      subtitle: Text(_asString(invoice['dueDate'])),
+                      dense: true,
+                      title: const Text(
+                        'Invoice Date',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _InvoiceViewColors.textGray,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _asString(invoice['invoiceDate']),
+                        style: const TextStyle(
+                          color: _InvoiceViewColors.darkGray,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       trailing: IconButton(
-                        onPressed: () => _pickInvoiceDate('dueDate'),
+                        onPressed: () => _pickInvoiceDate('invoiceDate'),
                         icon: const Icon(Icons.edit_calendar_outlined),
                       ),
                     ),
+                    TextFormField(
+                      initialValue: _asString(invoice['invoiceNo']),
+                      decoration: const InputDecoration(
+                        labelText: 'Invoice Number',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onChanged: (v) => _setInvoiceField('invoiceNo', v),
+                    ),
+                    if (_includeDueDate) ...[
+                      const SizedBox(height: 8),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text(
+                          'Due Date',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _InvoiceViewColors.textGray,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _asString(invoice['dueDate']),
+                          style: const TextStyle(
+                            color: _InvoiceViewColors.darkGray,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        trailing: IconButton(
+                          onPressed: () => _pickInvoiceDate('dueDate'),
+                          icon: const Icon(Icons.edit_calendar_outlined),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              );
-              if (stacked) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [left, const SizedBox(height: 12), right],
                 );
-              }
-              return Row(
-                children: [
-                  Expanded(child: left),
-                  const SizedBox(width: 12),
-                  Expanded(child: right),
-                ],
-              );
-            },
+                if (stacked) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [left, const SizedBox(height: 12), right],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: left),
+                    const SizedBox(width: 12),
+                    Expanded(child: right),
+                  ],
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: 12),
-        _sectionCard(
+        _glassPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Invoice Items',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: _InvoiceViewColors.darkGray,
-                ),
+              _sectionTitle(
+                icon: Icons.inventory_2_outlined,
+                title: 'Invoice Items',
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               ...items.asMap().entries.map((entry) {
                 final int index = entry.key;
                 final Map<String, dynamic> item = entry.value;
                 final double amount =
                     _asDouble(item['qty']) * _asDouble(item['unitPrice']);
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _InvoiceViewColors.lightGray),
-                  ),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        initialValue: _asString(item['description']),
-                        minLines: 2,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (v) =>
-                            _updateInvoiceItem(index, 'description', v),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _HoverCard(
+                    hoverable: true,
+                    elevation: 1,
+                    hoverElevation: 3,
+                    borderRadius: BorderRadius.circular(12),
+                    borderColor: _InvoiceViewColors.lightGray,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: TextFormField(
-                              initialValue: _asDouble(item['qty']).toString(),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'Qty',
-                                border: OutlineInputBorder(),
-                                isDense: true,
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
                               ),
-                              onChanged: (v) => _updateInvoiceItem(
-                                index,
-                                'qty',
-                                double.tryParse(v) ?? 0,
+                              decoration: BoxDecoration(
+                                color: _InvoiceViewColors.surfaceMuted,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: _InvoiceViewColors.lightGray,
+                                ),
+                              ),
+                              child: Text(
+                                'AED ${amount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: _InvoiceViewColors.darkGray,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextFormField(
-                              initialValue: _asDouble(
-                                item['unitPrice'],
-                              ).toString(),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'Unit Price',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onChanged: (v) => _updateInvoiceItem(
-                                index,
-                                'unitPrice',
-                                double.tryParse(v) ?? 0,
-                              ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            initialValue: _asString(item['description']),
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              labelText: 'Description',
+                              border: OutlineInputBorder(),
                             ),
+                            onChanged: (v) =>
+                                _updateInvoiceItem(index, 'description', v),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  initialValue: _asDouble(
+                                    item['qty'],
+                                  ).toString(),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Qty',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                  onChanged: (v) => _updateInvoiceItem(
+                                    index,
+                                    'qty',
+                                    double.tryParse(v) ?? 0,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  initialValue: _asDouble(
+                                    item['unitPrice'],
+                                  ).toString(),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Unit Price',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                  onChanged: (v) => _updateInvoiceItem(
+                                    index,
+                                    'unitPrice',
+                                    double.tryParse(v) ?? 0,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          'Amount: ${amount.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: _InvoiceViewColors.darkGray,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 );
               }),
               OutlinedButton.icon(
                 onPressed: _addItem,
+                style: _outlinedButtonStyle(),
                 icon: const Icon(Icons.add_rounded, size: 16),
                 label: const Text('Add Item'),
               ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _InvoiceViewColors.mediumGray),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _glassPanel(
+          hoverable: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionTitle(icon: Icons.calculate_rounded, title: 'Summary'),
+              const SizedBox(height: 12),
+              _detailRow(
+                label: 'Subtotal',
+                value: _subtotal.toStringAsFixed(2),
+              ),
+              if (_includeTax) ...[
+                const SizedBox(height: 8),
+                _detailRow(
+                  label:
+                      'VAT ${(_asDouble(invoice['vatRate']) == 0 ? 5 : _asDouble(invoice['vatRate'])).toStringAsFixed(0)}%',
+                  value: _vatAmount.toStringAsFixed(2),
                 ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Subtotal'),
-                        const Spacer(),
-                        Text(_subtotal.toStringAsFixed(2)),
-                      ],
-                    ),
-                    if (_includeTax) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Text(
-                            'VAT ${(_asDouble(invoice['vatRate']) == 0 ? 5 : _asDouble(invoice['vatRate'])).toStringAsFixed(0)}%',
-                          ),
-                          const Spacer(),
-                          Text(_vatAmount.toStringAsFixed(2)),
-                        ],
-                      ),
-                    ],
-                    const Divider(height: 18),
-                    Row(
-                      children: [
-                        const Text(
-                          'TOTAL AED',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _total.toStringAsFixed(2),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              ],
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Divider(height: 1),
+              ),
+              _detailRow(
+                label: 'TOTAL AED',
+                value: _total.toStringAsFixed(2),
+                valueColor: _InvoiceViewColors.primaryBlue,
               ),
             ],
           ),
@@ -1247,78 +1608,81 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
   Widget _buildTimesheetView() {
     final Map<String, dynamic>? invoice = _invoice;
     if (invoice == null) {
-      return _sectionCard(child: const Text('No invoice loaded'));
+      return _emptyBlock(
+        icon: Icons.calendar_month_outlined,
+        title: 'No invoice loaded',
+        subtitle: 'Timesheet cannot be displayed right now.',
+      );
     }
-    return _sectionCard(
+    return _glassPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Location: ${_clientDisplayName.isEmpty ? '-' : _clientDisplayName}',
-            style: const TextStyle(
-              color: _InvoiceViewColors.darkGray,
-              fontWeight: FontWeight.w600,
-            ),
+          _sectionTitle(icon: Icons.calendar_month_rounded, title: 'Timesheet'),
+          const SizedBox(height: 12),
+          _detailRow(
+            label: 'Location',
+            value: _clientDisplayName.isEmpty ? '-' : _clientDisplayName,
           ),
+          const SizedBox(height: 8),
+          const _TextMeta('Service: Security Guards'),
           const SizedBox(height: 4),
-          const Text(
-            'Service: Security Guards',
-            style: TextStyle(color: _InvoiceViewColors.textGray, fontSize: 12),
-          ),
-          Text(
+          _TextMeta(
             'Period: ${_asString(invoice['periodFrom'])} to ${_asString(invoice['periodTo'])}',
-            style: const TextStyle(
-              color: _InvoiceViewColors.textGray,
-              fontSize: 12,
-            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (_processedTimesheet.isEmpty)
-            const Text(
-              'No timesheet data available.',
-              style: TextStyle(color: _InvoiceViewColors.textGray),
-            )
+            const _TextMeta('No timesheet data available.')
           else
             ..._processedTimesheet.map((day) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _InvoiceViewColors.lightGray),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _asString(day['date']),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _InvoiceViewColors.darkGray,
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _HoverCard(
+                  hoverable: true,
+                  elevation: 1,
+                  hoverElevation: 3,
+                  borderRadius: BorderRadius.circular(12),
+                  borderColor: _InvoiceViewColors.lightGray,
+                  leftAccentColor: _InvoiceViewColors.warningStripe,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _asString(day['date']),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: _InvoiceViewColors.darkGray,
+                            ),
+                          ),
                         ),
-                      ),
+                        Text(
+                          '${_asDouble(day['guardCount']).toInt()} guards',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _InvoiceViewColors.textGray,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _formatHours(_asDouble(day['totalHours'])),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _InvoiceViewColors.warning,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '${_asDouble(day['guardCount']).toInt()} guards',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: _InvoiceViewColors.textGray,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      _formatHours(_asDouble(day['totalHours'])),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _InvoiceViewColors.warning,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               );
             }),
-          const Divider(height: 18),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1),
+          ),
           Text(
             'TOTAL WORKING HOURS: ${_formatHours(_asDouble(invoice['totalHours']))}',
             style: const TextStyle(
@@ -1334,143 +1698,143 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
   Widget _buildReceiptsView() {
     return Column(
       children: [
-        _sectionCard(
+        _glassPanel(
           child: Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Payment Receipts',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _InvoiceViewColors.primaryBlue,
-                      ),
+                child: _sectionTitle(
+                  icon: Icons.payments_rounded,
+                  title: 'Payment Receipts',
+                  trailing: Text(
+                    'Invoice: ${_asString(_invoice?['invoiceNo'])}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: _InvoiceViewColors.textGray,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Invoice: ${_asString(_invoice?['invoiceNo'])}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: _InvoiceViewColors.textGray,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _openReceiptModal,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _InvoiceViewColors.primaryBlue,
+                  foregroundColor: _InvoiceViewColors.pureWhite,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
                 icon: const Icon(Icons.add_rounded, size: 16),
                 label: const Text('New Receipt'),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        _sectionCard(
-          child: Row(
+        const SizedBox(height: 12),
+        _glassPanel(
+          hoverable: false,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Expanded(
-                child: _summaryBox(
-                  'Invoice Total',
-                  _total,
-                  _InvoiceViewColors.darkGray,
-                ),
+              _tinyStatPill(
+                label: 'Invoice Total',
+                value: _total.toStringAsFixed(2),
+                color: _InvoiceViewColors.darkGray,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _summaryBox('Received', _totalReceived, Colors.green),
+              _tinyStatPill(
+                label: 'Received',
+                value: _totalReceived.toStringAsFixed(2),
+                color: Colors.green,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _summaryBox(
-                  'Pending',
-                  _pending,
-                  _InvoiceViewColors.warning,
-                ),
+              _tinyStatPill(
+                label: 'Pending',
+                value: _pending.toStringAsFixed(2),
+                color: _pending > 0
+                    ? _InvoiceViewColors.warningStripe
+                    : Colors.green,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         if (_receipts.isEmpty)
-          _sectionCard(
-            child: const Text(
-              'No receipts yet.',
-              style: TextStyle(color: _InvoiceViewColors.textGray),
-            ),
+          _emptyBlock(
+            icon: Icons.payments_outlined,
+            title: 'No receipts yet',
+            subtitle: 'Create a receipt to track incoming payments.',
           )
         else
           ..._receipts.map((receipt) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: _sectionCard(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _asString(receipt['receiptNo']),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: _InvoiceViewColors.darkGray,
+              child: _HoverCard(
+                hoverable: true,
+                elevation: 1,
+                hoverElevation: 3,
+                borderRadius: BorderRadius.circular(12),
+                borderColor: _InvoiceViewColors.lightGray,
+                leftAccentColor: Colors.green,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _asString(receipt['receiptNo']),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: _InvoiceViewColors.darkGray,
+                              ),
                             ),
                           ),
-                        ),
-                        Text(
-                          'AED ${_asDouble(receipt['amountReceived']).toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.w700,
+                          Text(
+                            'AED ${_asDouble(receipt['amountReceived']).toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _detailRow(
+                        label: 'Date',
+                        value: _dateKey(
+                          _tryDate(receipt['paymentDate']) ?? DateTime.now(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _detailRow(
+                        label: 'Mode',
+                        value: _asString(receipt['paymentMode']),
+                      ),
+                      if (_asString(receipt['note']).isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        _detailRow(
+                          label: 'Note',
+                          value: _asString(receipt['note']),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _dateKey(
-                        _tryDate(receipt['paymentDate']) ?? DateTime.now(),
-                      ),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: _InvoiceViewColors.textGray,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Mode: ${_asString(receipt['paymentMode'])}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: _InvoiceViewColors.textGray,
-                      ),
-                    ),
-                    if (_asString(receipt['note']).isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        _asString(receipt['note']),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: _InvoiceViewColors.darkGray,
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _deleteReceipt(_asString(receipt['_id']).trim()),
+                          style: _outlinedButtonStyle(
+                            color: Colors.red,
+                            borderColor: Colors.red.withValues(alpha: 0.35),
+                          ),
+                          icon: const Icon(Icons.delete_outline, size: 16),
+                          label: const Text('Delete'),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _deleteReceipt(_asString(receipt['_id']).trim()),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                        ),
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Delete'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -1479,43 +1843,11 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
     );
   }
 
-  Widget _summaryBox(String label, double value, Color valueColor) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _InvoiceViewColors.lightGray),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: _InvoiceViewColors.textGray,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'AED ${value.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 14,
-              color: valueColor,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _openReceiptModal() async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: SingleChildScrollView(
@@ -1523,14 +1855,25 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Add Payment Receipt',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: _InvoiceViewColors.darkGray,
-                  ),
+                Row(
+                  children: const [
+                    Icon(
+                      Icons.payments_outlined,
+                      color: _InvoiceViewColors.primaryBlue,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Add Payment Receipt',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _InvoiceViewColors.darkGray,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 8),
+                const Divider(height: 1),
                 const SizedBox(height: 12),
                 TextField(
                   keyboardType: const TextInputType.numberWithOptions(
@@ -1542,7 +1885,7 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
                   ),
                   onChanged: (v) => _receiptForm['amountReceived'] = v,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: _asString(_receiptForm['paymentMode']),
                   decoration: const InputDecoration(
@@ -1568,7 +1911,7 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
                     }
                   },
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Payment Date'),
@@ -1617,11 +1960,13 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
+                      child: OutlinedButton.icon(
                         onPressed: _saving
                             ? null
                             : () => Navigator.of(dialogContext).pop(),
-                        child: const Text('Cancel'),
+                        style: _outlinedButtonStyle(),
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        label: const Text('Cancel'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1635,6 +1980,13 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
                                   Navigator.of(dialogContext).pop();
                                 }
                               },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _InvoiceViewColors.primaryBlue,
+                          foregroundColor: _InvoiceViewColors.pureWhite,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                         icon: _saving
                             ? const SizedBox(
                                 width: 14,
@@ -1661,56 +2013,213 @@ class _InvoiceViewPageState extends State<InvoiceViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _InvoiceViewColors.pageBackground,
-      appBar: AppBar(
-        title: const Text('Invoice View'),
-        backgroundColor: _InvoiceViewColors.pureWhite,
-        surfaceTintColor: _InvoiceViewColors.pureWhite,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1100),
-            child: ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                _buildTopControls(),
-                const SizedBox(height: 12),
-                if (_loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 36),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_invoice == null)
-                  _sectionCard(
-                    child: const Text(
-                      'Invoice not found or deleted.',
-                      style: TextStyle(color: _InvoiceViewColors.textGray),
-                    ),
-                  )
-                else if (_currentView == 'invoice')
-                  _buildInvoiceView()
-                else if (_currentView == 'timesheet')
-                  _buildTimesheetView()
-                else
-                  _buildReceiptsView(),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: _saving ? null : _saveInvoice,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_outlined, size: 16),
-                  label: const Text('Save Invoice'),
+      body: Container(
+        decoration: _backgroundGradient(),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1100),
+                    child: _buildHeader(),
+                  ),
                 ),
-              ],
-            ),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _fetchInvoice,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    children: [
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1100),
+                          child: Column(
+                            children: [
+                              _buildTopControls(),
+                              const SizedBox(height: 12),
+                              if (_loading)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 36),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (_invoice == null)
+                                _emptyBlock(
+                                  icon: Icons.receipt_long_outlined,
+                                  title: 'Invoice not found or deleted',
+                                  subtitle:
+                                      'Please refresh or verify this invoice.',
+                                )
+                              else if (_currentView == 'invoice')
+                                _buildInvoiceView()
+                              else if (_currentView == 'timesheet')
+                                _buildTimesheetView()
+                              else
+                                _buildReceiptsView(),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: _saving ? null : _saveInvoice,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor:
+                                        _InvoiceViewColors.primaryBlue,
+                                    foregroundColor:
+                                        _InvoiceViewColors.pureWhite,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  icon: _saving
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.save_outlined,
+                                          size: 16,
+                                        ),
+                                  label: const Text('Save Invoice'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
       bottomNavigationBar: const AppBottomNavBar(currentIndex: -1),
+    );
+  }
+}
+
+class _TextMeta extends StatelessWidget {
+  const _TextMeta(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: _InvoiceViewColors.textGray,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+}
+
+class _HoverCard extends StatefulWidget {
+  const _HoverCard({
+    required this.child,
+    this.hoverable = true,
+    this.elevation = 1,
+    this.hoverElevation = 4,
+    this.borderRadius = const BorderRadius.all(Radius.circular(12)),
+    this.borderColor = Colors.transparent,
+    this.leftAccentColor,
+  });
+
+  final Widget child;
+  final bool hoverable;
+  final double elevation;
+  final double hoverElevation;
+  final BorderRadius borderRadius;
+  final Color borderColor;
+  final Color? leftAccentColor;
+
+  @override
+  State<_HoverCard> createState() => _HoverCardState();
+}
+
+class _HoverCardState extends State<_HoverCard> {
+  bool _hovering = false;
+
+  bool get _canHover {
+    if (!widget.hoverable) {
+      return false;
+    }
+    if (kIsWeb) {
+      return true;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return true;
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double elevation = _canHover && _hovering
+        ? widget.hoverElevation
+        : widget.elevation;
+    final double offsetY = _canHover && _hovering ? -1.5 : 0;
+
+    return MouseRegion(
+      onEnter: _canHover ? (_) => setState(() => _hovering = true) : null,
+      onExit: _canHover ? (_) => setState(() => _hovering = false) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, offsetY, 0),
+        child: Material(
+          color: _InvoiceViewColors.pureWhite,
+          elevation: elevation,
+          shadowColor: Colors.black.withValues(alpha: 0.1),
+          borderRadius: widget.borderRadius,
+          child: ClipRRect(
+            borderRadius: widget.borderRadius,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: widget.borderRadius,
+                border: Border.all(color: widget.borderColor),
+              ),
+              child: Stack(
+                children: [
+                  if (widget.leftAccentColor != null)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(width: 4, color: widget.leftAccentColor),
+                    ),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: widget.leftAccentColor != null ? 4 : 0,
+                    ),
+                    child: widget.child,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

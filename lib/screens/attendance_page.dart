@@ -131,6 +131,7 @@ class _AttendancePageState extends State<AttendancePage> {
   }
 
   String _formatDate(DateTime value) {
+    final DateTime local = value.toLocal();
     const List<String> month = <String>[
       'Jan',
       'Feb',
@@ -145,14 +146,15 @@ class _AttendancePageState extends State<AttendancePage> {
       'Nov',
       'Dec',
     ];
-    return '${value.day.toString().padLeft(2, '0')} ${month[value.month - 1]} ${value.year}';
+    return '${local.day.toString().padLeft(2, '0')} ${month[local.month - 1]} ${local.year}';
   }
 
   String _formatDateTime(DateTime value) {
-    final String date = _formatDate(value);
-    final int hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
-    final String amPm = value.hour >= 12 ? 'PM' : 'AM';
-    final String minute = value.minute.toString().padLeft(2, '0');
+    final DateTime local = value.toLocal();
+    final String date = _formatDate(local);
+    final int hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final String amPm = local.hour >= 12 ? 'PM' : 'AM';
+    final String minute = local.minute.toString().padLeft(2, '0');
     return '$date, $hour:$minute $amPm';
   }
 
